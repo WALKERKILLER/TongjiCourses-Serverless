@@ -15,7 +15,6 @@ app.use('/*', cors({
   allowMethods: ['POST', 'GET', 'DELETE', 'OPTIONS']
 }))
 
-// 全局错误处理
 app.onError((err, c) => {
   console.error('Error:', err)
   return c.json({ error: err.message || 'Internal Server Error' }, 500)
@@ -38,20 +37,30 @@ async function verifyTurnstile(token: string, secret: string, ip: string) {
 app.get('/api/courses', async (c) => {
   try {
     const keyword = c.req.query('q')
+    const legacy = c.req.query('legacy') // 'true' 显示乌龙茶数据, 其他值不显示
+
     let query = `
-      SELECT c.id, c.code, c.name, c.review_avg as rating, c.review_count, t.name as teacher_name
+      SELECT c.id, c.code, c.name, c.review_avg as rating, c.review_count, c.is_legacy, t.name as teacher_name
       FROM courses c
-      LEFT JOIN teachers t ON c.main_teacher_id = t.id
+      LEFT JOIN teachers t ON c.teacher_id = t.id
+      WHERE 1=1
     `
     let params: string[] = []
 
-    if (keyword) {
-      query += ' WHERE c.search_keywords LIKE ? OR c.code LIKE ? OR c.name LIKE ?'
-      const likeKey = `%${keyword}%`
-      params = [likeKey, likeKey, likeKey]
+    // 筛选是否显示乌龙茶历史数据
+    if (legacy === 'true') {
+      query += ' AND c.is_legacy = 1'
+    } else {
+      query += ' AND c.is_legacy = 0'
     }
 
-    query += ' ORDER BY c.review_count DESC LIMIT 50'
+    if (keyword) {
+      query += ' AND (c.search_keywords LIKE ? OR c.code LIKE ? OR c.name LIKE ? OR t.name LIKE ?)'
+      const likeKey = `%${keyword}%`
+      params = [likeKey, likeKey, likeKey, likeKey]
+    }
+
+    query += ' ORDER BY c.review_count DESC LIMIT 100'
     const { results } = await c.env.DB.prepare(query).bind(...params).all()
     return c.json(results || [])
   } catch (err: any) {
@@ -65,7 +74,7 @@ app.get('/api/course/:id', async (c) => {
 
     const course = await c.env.DB.prepare(
       `SELECT c.*, t.name as teacher_name FROM courses c
-       LEFT JOIN teachers t ON c.main_teacher_id = t.id
+       LEFT JOIN teachers t ON c.teacher_id = t.id
        WHERE c.id = ?`
     ).bind(id).first()
 
@@ -91,14 +100,14 @@ app.post('/api/review', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO reviews (course_id, rating, comment, semester) VALUES (?, ?, ?, ?)`
+    `INSERT INTO reviews (course_id, rating, comment, semester, is_legacy) VALUES (?, ?, ?, ?, 0)`
   ).bind(course_id, rating, comment, semester).run()
 
-  // 更新课程统计
+  // 更新课程统计（只统计非legacy且rating>0的评价）
   await c.env.DB.prepare(`
     UPDATE courses SET
       review_count = (SELECT COUNT(*) FROM reviews WHERE course_id = ? AND is_hidden = 0),
-      review_avg = (SELECT AVG(rating) FROM reviews WHERE course_id = ? AND is_hidden = 0)
+      review_avg = (SELECT AVG(rating) FROM reviews WHERE course_id = ? AND is_hidden = 0 AND rating > 0)
     WHERE id = ?
   `).bind(course_id, course_id, course_id).run()
 

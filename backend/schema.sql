@@ -26,11 +26,12 @@ CREATE TABLE courses (
     name TEXT NOT NULL,
     credit REAL DEFAULT 0,
     department TEXT,
-    main_teacher_id INTEGER,
+    teacher_id INTEGER,
     review_count INTEGER DEFAULT 0,
     review_avg REAL DEFAULT 0,
     search_keywords TEXT,
-    FOREIGN KEY (main_teacher_id) REFERENCES teachers(id)
+    is_legacy INTEGER DEFAULT 0,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(id)
 );
 
 -- 评价表
@@ -38,18 +39,21 @@ CREATE TABLE reviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     course_id INTEGER NOT NULL,
     semester TEXT,
-    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    rating INTEGER NOT NULL CHECK (rating >= 0 AND rating <= 5),
     comment TEXT,
     score TEXT,
     created_at INTEGER DEFAULT (strftime('%s', 'now')),
     approve_count INTEGER DEFAULT 0,
     disapprove_count INTEGER DEFAULT 0,
     is_hidden BOOLEAN DEFAULT 0,
+    is_legacy INTEGER DEFAULT 0,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 
 -- 索引
 CREATE INDEX idx_courses_code ON courses(code);
 CREATE INDEX idx_courses_search ON courses(search_keywords);
+CREATE INDEX idx_courses_legacy ON courses(is_legacy);
 CREATE INDEX idx_reviews_course ON reviews(course_id);
 CREATE INDEX idx_reviews_created ON reviews(created_at);
+CREATE INDEX idx_reviews_legacy ON reviews(is_legacy);

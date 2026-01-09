@@ -13,8 +13,10 @@ async function fetchWithTimeout(url: string, options?: RequestInit, timeout = 15
   }
 }
 
-export async function fetchCourses(keyword?: string) {
-  const url = keyword ? `${API_BASE}/api/courses?q=${encodeURIComponent(keyword)}` : `${API_BASE}/api/courses`
+export async function fetchCourses(keyword?: string, legacy?: boolean) {
+  let url = `${API_BASE}/api/courses?`
+  if (keyword) url += `q=${encodeURIComponent(keyword)}&`
+  if (legacy) url += `legacy=true`
   const res = await fetchWithTimeout(url, undefined, 15000)
   if (!res.ok) throw new Error('Failed to fetch courses')
   const data = await res.json()
