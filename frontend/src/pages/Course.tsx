@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { fetchCourse } from '../services/api'
+import GlassCard from '../components/GlassCard'
+import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
 
 interface Review {
   id: number
@@ -30,41 +32,119 @@ export default function Course() {
     if (id) fetchCourse(id).then(setCourse)
   }, [id])
 
-  if (!course) return <p>加载中...</p>
+  if (!course) return <div className="text-center py-20 text-slate-500">加载中...</div>
 
   return (
-    <div>
-      <div className="card">
-        <h2>{course.code} - {course.name}</h2>
-        <p style={{ color: '#666', margin: '8px 0' }}>
-          {course.teacher_name || '未知教师'} · {course.credit} 学分 · {course.department}
-        </p>
-        <p>
-          <span className="rating">★ {course.review_avg?.toFixed(1) || '-'}</span>
-          <span style={{ marginLeft: '12px', color: '#666' }}>{course.review_count} 条点评</span>
-        </p>
-        <Link to={`/write-review/${course.id}`} className="btn btn-primary" style={{ marginTop: '12px', display: 'inline-block' }}>
-          写点评
-        </Link>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Left: Course Info */}
+      <div className="lg:col-span-4 space-y-4">
+        <GlassCard className="bg-gradient-to-b from-cyan-50/80 to-white" hover={false}>
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white rounded-full text-xs font-bold text-cyan-600 shadow-sm mb-4">
+            <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
+            {course.code}
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-800 mb-1">{course.name}</h2>
+          <p className="text-slate-500 font-medium mb-6">{course.department}</p>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-white">
+              <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center text-cyan-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">授课教师</p>
+                <p className="text-sm font-bold text-slate-700">{course.teacher_name || '未知教师'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-white">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-500">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">综合评分</p>
+                <p className="text-sm font-bold text-slate-700">{course.review_avg?.toFixed(1) || '-'} / 5.0</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-white">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">课程学分</p>
+                <p className="text-sm font-bold text-slate-700">{course.credit} 学分</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-cyan-100/50">
+            <Link
+              to={`/write-review/${course.id}`}
+              className="w-full py-3 bg-slate-800 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-700 hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              撰写评价
+            </Link>
+          </div>
+        </GlassCard>
       </div>
 
-      <h3 style={{ margin: '20px 0 12px' }}>课程点评</h3>
-      {course.reviews?.map(r => (
-        <div key={r.id} className="card review-item">
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span className="rating">★ {r.rating}</span>
-            <span style={{ fontSize: '12px', color: '#999' }}>{r.semester}</span>
-          </div>
-          <p style={{ marginTop: '8px' }}>{r.comment}</p>
-          <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
-            {new Date(r.created_at * 1000).toLocaleString()}
-          </p>
+      {/* Right: Reviews */}
+      <div className="lg:col-span-8 space-y-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xl font-bold text-slate-800">
+            课程评价 <span className="text-slate-400 text-sm font-normal">({course.review_count})</span>
+          </h3>
         </div>
-      ))}
 
-      {(!course.reviews || course.reviews.length === 0) && (
-        <p style={{ textAlign: 'center', color: '#999' }}>暂无点评</p>
-      )}
+        {course.reviews?.length > 0 ? (
+          course.reviews.map((review) => (
+            <GlassCard key={review.id} hover={false} className="!p-5">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center text-cyan-700 text-sm font-bold border-2 border-white shadow-sm">
+                    匿
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">匿名用户</p>
+                    <p className="text-[10px] text-slate-400">{review.semester} · {new Date(review.created_at * 1000).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <svg key={s} className={`w-4 h-4 ${s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} viewBox="0 0 24 24">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-slate-600 text-sm leading-relaxed">
+                <CollapsibleMarkdown content={review.comment} maxLength={300} />
+              </div>
+            </GlassCard>
+          ))
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 bg-white/50 rounded-3xl border border-dashed border-slate-200">
+            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">
+              <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </div>
+            <p className="text-slate-400 font-medium">暂无评价，快来抢沙发吧！</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

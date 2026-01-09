@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import GlassCard from '../components/GlassCard'
+import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -52,49 +54,123 @@ export default function Admin() {
 
   if (!isAuth) {
     return (
-      <div style={{ textAlign: 'center', padding: '50px 0' }}>
-        <h2>管理员登录</h2>
-        <input
-          type="password"
-          value={secret}
-          onChange={e => setSecret(e.target.value)}
-          placeholder="输入 Admin Secret"
-          style={{ width: '300px', marginTop: '20px' }}
-          onKeyDown={e => e.key === 'Enter' && login()}
-        />
-        <br />
-        <button className="btn btn-primary" onClick={login} style={{ marginTop: '16px' }}>进入系统</button>
+      <div className="max-w-md mx-auto mt-20">
+        <GlassCard hover={false} className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-tr from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-cyan-500/30 mx-auto mb-6">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">管理员登录</h2>
+          <p className="text-slate-500 text-sm mb-6">请输入管理密钥以访问后台</p>
+
+          <input
+            type="password"
+            value={secret}
+            onChange={e => setSecret(e.target.value)}
+            placeholder="输入 Admin Secret"
+            className="w-full px-4 py-3 bg-white/60 backdrop-blur border border-slate-200 rounded-xl text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all mb-4"
+            onKeyDown={e => e.key === 'Enter' && login()}
+          />
+
+          <button
+            onClick={login}
+            className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg hover:bg-slate-700 hover:shadow-xl transition-all active:scale-[0.98]"
+          >
+            进入系统
+          </button>
+        </GlassCard>
       </div>
     )
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>评论审核后台</h2>
-        <button className="btn btn-primary" onClick={fetchReviews}>刷新列表</button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">评论审核后台</h2>
+          <p className="text-slate-500 text-sm">{reviews.length} 条评论待审核</p>
+        </div>
+        <button
+          onClick={fetchReviews}
+          className="px-5 py-2.5 bg-white/70 backdrop-blur border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-white hover:border-cyan-300 hover:text-cyan-600 transition-all flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          刷新列表
+        </button>
       </div>
 
+      {/* Reviews List */}
       {reviews.map(r => (
-        <div key={r.id} className={`card ${r.is_hidden ? 'hidden-review' : ''}`}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 'bold' }}>{r.code} - {r.course_name}</span>
-            <span className="rating">★ {r.rating}</span>
-          </div>
-          <p style={{ margin: '10px 0', color: '#555' }}>{r.comment}</p>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#999' }}>
-            <span>{new Date(r.created_at * 1000).toLocaleString()}</span>
-            <div>
-              <button className="btn" onClick={() => toggleHide(r.id)} style={{ marginRight: '8px' }}>
-                {r.is_hidden ? '显示' : '隐藏'}
-              </button>
-              <button className="btn btn-danger" onClick={() => deleteReview(r.id)}>删除</button>
+        <GlassCard
+          key={r.id}
+          hover={false}
+          className={`!p-5 ${r.is_hidden ? 'border-l-4 border-l-red-400 bg-red-50/30' : ''}`}
+        >
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-md border border-cyan-100">
+                {r.code}
+              </span>
+              <span className="font-bold text-slate-700">{r.course_name}</span>
+              {r.is_hidden ? (
+                <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-md border border-red-100">
+                  已隐藏
+                </span>
+              ) : null}
+            </div>
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <svg key={s} className={`w-4 h-4 ${s <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} viewBox="0 0 24 24">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              ))}
             </div>
           </div>
-        </div>
+
+          <div className="text-slate-600 text-sm leading-relaxed mb-4">
+            <CollapsibleMarkdown content={r.comment} maxLength={200} />
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-4 border-t border-slate-100">
+            <span className="text-xs text-slate-400">
+              {new Date(r.created_at * 1000).toLocaleString()}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => toggleHide(r.id)}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  r.is_hidden
+                    ? 'bg-green-50 text-green-600 border border-green-200 hover:bg-green-100'
+                    : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                }`}
+              >
+                {r.is_hidden ? '显示' : '隐藏'}
+              </button>
+              <button
+                onClick={() => deleteReview(r.id)}
+                className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 transition-all"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </GlassCard>
       ))}
 
-      {reviews.length === 0 && <p style={{ textAlign: 'center', color: '#999' }}>暂无评论</p>}
+      {reviews.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 bg-white/50 rounded-3xl border border-dashed border-slate-200">
+          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">
+            <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <p className="text-slate-400 font-medium">暂无评论</p>
+        </div>
+      )}
     </div>
   )
 }
