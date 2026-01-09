@@ -37,32 +37,39 @@ async function verifyTurnstile(token: string, secret: string, ip: string) {
 app.get('/api/courses', async (c) => {
   try {
     const keyword = c.req.query('q')
-    const legacy = c.req.query('legacy') // 'true' 显示乌龙茶数据, 其他值不显示
+    const legacy = c.req.query('legacy')
+    const page = parseInt(c.req.query('page') || '1')
+    const limit = parseInt(c.req.query('limit') || '20')
+    const offset = (page - 1) * limit
 
-    let query = `
-      SELECT c.id, c.code, c.name, c.review_avg as rating, c.review_count, c.is_legacy, t.name as teacher_name
-      FROM courses c
-      LEFT JOIN teachers t ON c.teacher_id = t.id
-      WHERE 1=1
-    `
+    let baseWhere = ' WHERE 1=1'
     let params: string[] = []
 
-    // 筛选是否显示乌龙茶历史数据
     if (legacy === 'true') {
-      query += ' AND c.is_legacy = 1'
+      baseWhere += ' AND c.is_legacy = 1'
     } else {
-      query += ' AND c.is_legacy = 0'
+      baseWhere += ' AND c.is_legacy = 0'
     }
 
     if (keyword) {
-      query += ' AND (c.search_keywords LIKE ? OR c.code LIKE ? OR c.name LIKE ? OR t.name LIKE ?)'
+      baseWhere += ' AND (c.search_keywords LIKE ? OR c.code LIKE ? OR c.name LIKE ? OR t.name LIKE ?)'
       const likeKey = `%${keyword}%`
       params = [likeKey, likeKey, likeKey, likeKey]
     }
 
-    query += ' ORDER BY c.review_count DESC LIMIT 100'
-    const { results } = await c.env.DB.prepare(query).bind(...params).all()
-    return c.json(results || [])
+    // 获取总数
+    const countQuery = `SELECT COUNT(*) as total FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${baseWhere}`
+    const countResult = await c.env.DB.prepare(countQuery).bind(...params).first<{total: number}>()
+    const total = countResult?.total || 0
+
+    // 获取分页数据
+    const query = `
+      SELECT c.id, c.code, c.name, c.review_avg as rating, c.review_count, c.is_legacy, t.name as teacher_name
+      FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${baseWhere}
+      ORDER BY c.review_count DESC LIMIT ? OFFSET ?
+    `
+    const { results } = await c.env.DB.prepare(query).bind(...params, limit, offset).all()
+    return c.json({ data: results || [], total, page, limit, totalPages: Math.ceil(total / limit) })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

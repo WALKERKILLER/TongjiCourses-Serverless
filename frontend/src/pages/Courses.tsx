@@ -22,14 +22,20 @@ export default function Courses() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showLegacy, setShowLegacy] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  const search = async (legacy?: boolean) => {
+  const search = async (legacy?: boolean, p = 1) => {
     setLoading(true)
     setError('')
     try {
       const useL = legacy !== undefined ? legacy : showLegacy
-      const data = await fetchCourses(keyword, useL)
-      setCourses(Array.isArray(data) ? data : [])
+      const data = await fetchCourses(keyword, useL, p, 20)
+      setCourses(Array.isArray(data.data) ? data.data : [])
+      setTotalPages(data.totalPages || 1)
+      setTotal(data.total || 0)
+      setPage(p)
     } catch (err) {
       console.error('Failed to fetch courses:', err)
       setError('加载失败，请重试')
@@ -44,7 +50,7 @@ export default function Courses() {
   const toggleLegacy = () => {
     const newValue = !showLegacy
     setShowLegacy(newValue)
-    search(newValue)
+    search(newValue, 1)
   }
 
   return (
@@ -126,7 +132,7 @@ export default function Courses() {
               {showLegacy ? '乌龙茶历史数据' : '课程列表'}
               {showLegacy && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-1 rounded-md">2023-09-03</span>}
             </h3>
-            <span className="text-sm text-slate-400">{courses.length} 门课程</span>
+            <span className="text-sm text-slate-400">共 {total} 门课程</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -177,6 +183,29 @@ export default function Courses() {
               <p className="text-slate-400">
                 {showLegacy ? '乌龙茶历史数据中没有找到相关课程' : '没有找到相关课程，换个关键词试试？'}
               </p>
+            </div>
+          )}
+
+          {/* 分页控件 */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 pt-4">
+              <button
+                onClick={() => search(undefined, page - 1)}
+                disabled={page <= 1 || loading}
+                className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                上一页
+              </button>
+              <span className="px-4 py-2 text-slate-600">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => search(undefined, page + 1)}
+                disabled={page >= totalPages || loading}
+                className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                下一页
+              </button>
             </div>
           )}
         </>
