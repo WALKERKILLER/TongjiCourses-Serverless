@@ -61,3 +61,21 @@ npm run deploy
 - Turnstile 人机验证防刷
 - 基于 Secret 的简易后台管理
 - 完全 Serverless，零运维成本
+
+## 管理后台访问
+
+管理后台已从前端导航栏隐藏，需通过机密 URL 参数访问：
+
+```
+https://你的域名/admin?access=secretkey
+```
+
+### 修改机密变量
+
+编辑 `frontend/src/pages/Admin.tsx`：
+
+```typescript
+const ACCESS_KEY = 'secretkey'  // 改为你的机密字符串
+```
+
+修改后需重新构建并部署前端。

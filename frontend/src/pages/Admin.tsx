@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import GlassCard from '../components/GlassCard'
 import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
+const ACCESS_KEY = 'secretkey'
 
 interface Review {
   id: number
@@ -15,9 +17,17 @@ interface Review {
 }
 
 export default function Admin() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [secret, setSecret] = useState(localStorage.getItem('admin_secret') || '')
   const [reviews, setReviews] = useState<Review[]>([])
   const [isAuth, setIsAuth] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('access') !== ACCESS_KEY) {
+      navigate('/')
+    }
+  }, [searchParams, navigate])
 
   const headers = { 'x-admin-secret': secret, 'Content-Type': 'application/json' }
 

@@ -7,7 +7,6 @@ export default function Navbar() {
 
   const navItems = [
     { path: '/', label: '课程目录' },
-    { path: '/admin', label: '管理后台' },
   ]
 
   return (
