@@ -4,7 +4,7 @@ import GlassCard from '../components/GlassCard'
 import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
-const ACCESS_KEY = 'secretkey'
+const ACCESS_KEY = 'tjcourse2026admin'
 
 interface Review {
   id: number

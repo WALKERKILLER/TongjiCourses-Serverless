@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchCourses } from '../services/api'
 import GlassCard from '../components/GlassCard'
+import Logo from '../components/Logo'
 
 interface CourseItem {
   id: number
@@ -98,7 +99,10 @@ export default function Courses() {
 
       {/* Loading State */}
       {loading && (
-        <div className="text-center py-10 text-slate-500">加载中...</div>
+        <div className="flex flex-col items-center justify-center py-16">
+          <Logo size={60} animate />
+          <p className="mt-4 text-slate-500">加载中...</p>
+        </div>
       )}
 
       {/* Error State */}

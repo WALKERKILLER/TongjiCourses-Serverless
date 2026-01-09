@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { fetchCourse } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
+import Logo from '../components/Logo'
 
 interface Review {
   id: number
@@ -32,7 +33,12 @@ export default function Course() {
     if (id) fetchCourse(id).then(setCourse)
   }, [id])
 
-  if (!course) return <div className="text-center py-20 text-slate-500">加载中...</div>
+  if (!course) return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <Logo size={60} animate />
+      <p className="mt-4 text-slate-500">加载中...</p>
+    </div>
+  )
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
