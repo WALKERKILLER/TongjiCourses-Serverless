@@ -1,0 +1,8 @@
+name = "jcourse-backend"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jcourse-db"
+database_id = "ced26cfd-a3a7-4b06-ac3f-587c9c939c1c"

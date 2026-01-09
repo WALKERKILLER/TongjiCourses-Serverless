@@ -1,0 +1,108 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  line-height: 1.6;
+}
+
+a {
+  color: #1976d2;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  background: #1976d2;
+  color: white;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+}
+
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: #1976d2;
+  color: white;
+}
+
+.btn-danger {
+  background: #d32f2f;
+  color: white;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.rating {
+  color: #ff9800;
+  font-weight: bold;
+}
+
+.search-box {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.search-box input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.course-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.review-item {
+  border-bottom: 1px solid #eee;
+  padding: 12px 0;
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.hidden-review {
+  background: #fcecec;
+}
