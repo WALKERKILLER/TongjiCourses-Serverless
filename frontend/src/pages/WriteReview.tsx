@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { fetchCourse, submitReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import MarkdownEditor from '../components/MarkdownEditor'
+import MarkdownToolbar from '../components/MarkdownToolbar'
+import TemplateSelector from '../components/TemplateSelector'
 import TongjiCaptchaWidget from '../components/TongjiCaptchaWidget'
 
 const REVIEW_TEMPLATE = `## 考核方式：
@@ -23,6 +25,7 @@ export default function WriteReview() {
   const [comment, setComment] = useState(REVIEW_TEMPLATE)
   const [token, setToken] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
 
   // 点评人设置
   const [showReviewer, setShowReviewer] = useState(false)
@@ -43,6 +46,79 @@ export default function WriteReview() {
     if (id) fetchCourse(id).then(setCourse)
   }, [id])
 
+  // 草稿自动保存
+  useEffect(() => {
+    if (!id) return
+
+    // 加载草稿
+    const draftKey = `review_draft_${id}`
+    const savedDraft = localStorage.getItem(draftKey)
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft)
+        setComment(draft.comment || REVIEW_TEMPLATE)
+        setRating(draft.rating || 5)
+        setShowReviewer(draft.showReviewer || false)
+        setReviewerName(draft.reviewerName || '')
+        setAvatarType(draft.avatarType || 'random')
+        setQqNumber(draft.qqNumber || '')
+      } catch (e) {
+        console.error('Failed to load draft:', e)
+      }
+    }
+  }, [id])
+
+  // 自动保存草稿（防抖）
+  useEffect(() => {
+    if (!id) return
+
+    const draftKey = `review_draft_${id}`
+    const timer = setTimeout(() => {
+      const draft = {
+        comment,
+        rating,
+        showReviewer,
+        reviewerName,
+        avatarType,
+        qqNumber,
+        timestamp: Date.now()
+      }
+      localStorage.setItem(draftKey, JSON.stringify(draft))
+    }, 1000) // 1秒防抖
+
+    return () => clearTimeout(timer)
+  }, [id, comment, rating, showReviewer, reviewerName, avatarType, qqNumber])
+
+  // Markdown 插入功能
+  const handleInsert = (before: string, after?: string) => {
+    // 这个功能会通过 MarkdownEditor 内部的 insertText 方法实现
+    // 暂时通过简单的文本追加实现
+    const textarea = document.querySelector('textarea')
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selectedText = comment.substring(start, end)
+    const newText = comment.substring(0, start) + before + selectedText + (after || '') + comment.substring(end)
+
+    setComment(newText)
+
+    // 恢复光标位置
+    setTimeout(() => {
+      textarea.focus()
+      const newCursorPos = start + before.length + selectedText.length
+      textarea.setSelectionRange(newCursorPos, newCursorPos)
+    }, 0)
+  }
+
+  const handleShowMore = () => {
+    setShowTemplateSelector(true)
+  }
+
+  const handleTemplateSelect = (template: string) => {
+    setComment(template || REVIEW_TEMPLATE)
+  }
+
   const handleSubmit = async () => {
     if (!comment.trim()) return alert('请填写点评内容')
     if (!token) return alert('请完成人机验证')
@@ -60,6 +136,10 @@ export default function WriteReview() {
       })
       if (res.success) {
         alert('点评提交成功！')
+        // 清除草稿
+        if (id) {
+          localStorage.removeItem(`review_draft_${id}`)
+        }
         navigate(`/course/${id}`)
       } else {
         alert(res.error || '提交失败')
@@ -72,7 +152,7 @@ export default function WriteReview() {
   if (!course) return <div className="text-center py-20 text-slate-500">加载中...</div>
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto pb-24 md:pb-6">
       <GlassCard hover={false}>
         {/* Header */}
         <div className="mb-6">
@@ -85,37 +165,74 @@ export default function WriteReview() {
           <h2 className="text-2xl font-bold text-slate-800">{course.code} - {course.name}</h2>
         </div>
 
-        {/* Rating */}
+        {/* Rating - 移动端优化为紧凑两行布局 */}
         <div className="mb-6">
           <label className="block mb-3 text-sm font-semibold text-slate-600">评分</label>
-          <div className="flex items-center gap-2 p-4 bg-white/60 backdrop-blur rounded-2xl border border-white">
-            {[1, 2, 3, 4, 5].map(star => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setRating(star)}
-                className="text-3xl p-1 transition-transform hover:scale-110 active:scale-95"
-              >
-                <svg
-                  className={`w-8 h-8 ${star <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`}
-                  viewBox="0 0 24 24"
+          <div className="p-4 bg-white/60 backdrop-blur rounded-2xl border border-white">
+            {/* 桌面端：单行布局 */}
+            <div className="hidden md:flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  className="text-3xl p-1 transition-transform hover:scale-110 active:scale-95"
                 >
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-              </button>
-            ))}
-            <span className="ml-3 text-sm font-semibold text-slate-600">{rating} 分</span>
+                  <svg
+                    className={`w-8 h-8 ${star <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`}
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                </button>
+              ))}
+              <span className="ml-3 text-sm font-semibold text-slate-600">{rating} 分</span>
+            </div>
+
+            {/* 移动端：紧凑两行布局 */}
+            <div className="md:hidden space-y-2">
+              <div className="flex items-center justify-center gap-1">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    className="p-1 transition-transform active:scale-95"
+                  >
+                    <svg
+                      className={`w-7 h-7 ${star <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`}
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+              <div className="text-center text-lg font-bold text-slate-700">{rating} 分</div>
+            </div>
           </div>
         </div>
 
         {/* Comment */}
         <div className="mb-6">
-          <label className="block mb-2 text-sm font-semibold text-slate-600">
-            点评内容 <span className="text-slate-400 font-normal text-xs">(支持 Markdown 格式)</span>
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-semibold text-slate-600">
+              点评内容 <span className="text-slate-400 font-normal text-xs">(支持 Markdown 格式)</span>
+            </label>
+            {/* 桌面端显示模板按钮 */}
+            <button
+              onClick={() => setShowTemplateSelector(true)}
+              className="hidden md:flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-cyan-600 bg-cyan-50 hover:bg-cyan-100 rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              选择模板
+            </button>
+          </div>
 
-          {/* Markdown Tips */}
-          <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 mb-3 text-[11px] text-slate-500">
+          {/* 桌面端：Markdown 提示 */}
+          <div className="hidden md:flex flex-wrap gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100 mb-3 text-[11px] text-slate-500">
             <span className="px-2 py-1 bg-white rounded-md border border-slate-100 font-mono">**粗体**</span>
             <span className="px-2 py-1 bg-white rounded-md border border-slate-100 font-mono">*斜体*</span>
             <span className="px-2 py-1 bg-white rounded-md border border-slate-100 font-mono">[链接](url)</span>
@@ -240,6 +357,21 @@ export default function WriteReview() {
           )}
         </button>
       </GlassCard>
+
+      {/* 移动端：底部工具栏 */}
+      <div className="md:hidden">
+        <MarkdownToolbar
+          onInsert={handleInsert}
+          onShowMore={handleShowMore}
+        />
+      </div>
+
+      {/* 模板选择器 */}
+      <TemplateSelector
+        isOpen={showTemplateSelector}
+        onClose={() => setShowTemplateSelector(false)}
+        onSelect={handleTemplateSelect}
+      />
     </div>
   )
 }

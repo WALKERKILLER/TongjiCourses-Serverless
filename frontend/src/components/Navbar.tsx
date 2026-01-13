@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Logo from './Logo'
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const [canGoBack, setCanGoBack] = useState(false)
@@ -19,7 +18,6 @@ export default function Navbar() {
       // 向下滚动且滚动距离超过100px时隐藏
       if (currentScrollY > lastScrollY && currentScrollY > 100) {
         setIsVisible(false)
-        setIsOpen(false) // 隐藏时关闭移动端菜单
       }
       // 向上滚动时显示
       else if (currentScrollY < lastScrollY) {
@@ -81,6 +79,7 @@ export default function Navbar() {
 
   const navItems: { path: string; label: string; external?: boolean }[] = [
     { path: '/', label: '课程目录' },
+    { path: '/feedback', label: '反馈留言' },
     { path: 'https://umami.yourtj.de/share/Sv78TrEoxVnsshxy', label: '流量监测', external: true },
   ]
 
@@ -177,55 +176,7 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-full active:scale-95 transition-transform"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            {isOpen ? (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            )}
-          </button>
         </div>
-
-        {/* Mobile Menu */}
-        {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-3 bg-white/90 backdrop-blur-xl border border-white/60 shadow-xl rounded-3xl p-4 md:hidden flex flex-col gap-2 z-40">
-            {navItems.map((item) => (
-              item.external ? (
-                <a
-                  key={item.path}
-                  href={item.path}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setIsOpen(false)}
-                  className="w-full text-left px-4 py-3 rounded-2xl font-bold transition-colors active:scale-[0.98] text-slate-600 hover:bg-cyan-50 hover:text-cyan-600"
-                >
-                  {item.label}
-                </a>
-              ) : (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsOpen(false)}
-                  className={`w-full text-left px-4 py-3 rounded-2xl font-bold transition-colors active:scale-[0.98] ${
-                    location.pathname === item.path
-                      ? 'bg-cyan-50 text-cyan-600'
-                      : 'text-slate-600 hover:bg-cyan-50 hover:text-cyan-600'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              )
-            ))}
-          </div>
-        )}
       </div>
     </nav>
   )

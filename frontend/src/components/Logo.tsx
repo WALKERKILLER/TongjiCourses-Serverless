@@ -14,10 +14,10 @@ export default function Logo({ size = 48, animate = false, className = '' }: Log
         transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
         className={className}
       >
-        <img src="/logo.svg" width={size} height={size} alt="Logo" />
+        <img src="/favicon.svg" width={size} height={size} alt="Logo" />
       </motion.div>
     )
   }
 
-  return <img src="/logo.svg" width={size} height={size} alt="Logo" className={className} />
+  return <img src="/favicon.svg" width={size} height={size} alt="Logo" className={className} />
 }

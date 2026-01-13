@@ -138,8 +138,8 @@ export default function FilterPanel({ onFilterChange, departments }: FilterPanel
         </div>
       </div>
 
-      {/* 移动端：悬浮徽章 */}
-      <div className="md:hidden fixed right-4 bottom-20 z-40">
+      {/* 移动端：悬浮徽章 - 避让底部导航栏 */}
+      <div className="md:hidden fixed right-4 bottom-24 z-40">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="w-14 h-14 bg-cyan-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-cyan-700 transition-colors relative"
