@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { fetchCourses } from '../services/api'
+import { fetchCourses, fetchDepartments } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import Logo from '../components/Logo'
+import FilterPanel, { FilterState } from '../components/FilterPanel'
 
 interface CourseItem {
   id: number
@@ -26,13 +27,25 @@ export default function Courses() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [departments, setDepartments] = useState<string[]>([])
+  const [filters, setFilters] = useState<FilterState>({
+    selectedDepartments: [],
+    onlyWithReviews: false
+  })
 
   const search = async (legacy?: boolean, p = 1) => {
     setLoading(true)
     setError('')
     try {
       const useL = legacy !== undefined ? legacy : showLegacy
-      const data = await fetchCourses(keyword, useL, p, 20)
+      const data = await fetchCourses(
+        keyword,
+        useL,
+        p,
+        20,
+        filters.selectedDepartments,
+        filters.onlyWithReviews
+      )
       setCourses(Array.isArray(data.data) ? data.data : [])
       setTotalPages(data.totalPages || 1)
       setTotal(data.total || 0)
@@ -46,19 +59,56 @@ export default function Courses() {
     }
   }
 
-  // 每次返回首页时刷新数据
+  // 加载开课单位列表
+  const loadDepartments = async (legacy?: boolean) => {
+    try {
+      const useL = legacy !== undefined ? legacy : showLegacy
+      const data = await fetchDepartments(useL)
+      setDepartments(data.departments || [])
+    } catch (err) {
+      console.error('Failed to fetch departments:', err)
+    }
+  }
+
+  // 筛选变化时重新搜索
+  const handleFilterChange = (newFilters: FilterState) => {
+    setFilters(newFilters)
+    setPage(1)
+  }
+
+  // 监听筛选变化
   useEffect(() => {
-    if (location.pathname === '/') search()
+    search(undefined, 1)
+  }, [filters])
+
+  // 每次返回首页时刷新数据和开课单位列表
+  useEffect(() => {
+    if (location.pathname === '/') {
+      search()
+      loadDepartments()
+    }
   }, [location.key])
+
+  // 切换legacy时重新加载开课单位列表
+  useEffect(() => {
+    loadDepartments()
+  }, [showLegacy])
 
   const toggleLegacy = () => {
     const newValue = !showLegacy
     setShowLegacy(newValue)
+    setFilters({ selectedDepartments: [], onlyWithReviews: false }) // 重置筛选
     search(newValue, 1)
   }
 
   return (
     <div className="space-y-6">
+      {/* 筛选面板 */}
+      <FilterPanel
+        departments={departments}
+        onFilterChange={handleFilterChange}
+      />
+
       {/* Search Hero Section */}
       <GlassCard className="bg-gradient-to-r from-cyan-50 to-white min-h-[160px] flex flex-col justify-center relative overflow-hidden" hover={false}>
         <div className="absolute top-0 right-0 p-6 opacity-10">
@@ -68,7 +118,7 @@ export default function Courses() {
         </div>
         <div className="relative z-10 max-w-xl">
           <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-2">探索同济大学精彩课程</h2>
-          <p className="text-sm md:text-base text-slate-500 mb-5">发现好课、避雷水课，查阅真实评价</p>
+          <p className="text-sm md:text-base text-slate-500 mb-5">不记名，自由，简洁，高效的选课社区</p>
 
           <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-cyan-100 focus-within:ring-2 focus-within:ring-cyan-400 transition-shadow">
             <svg className="text-slate-400 ml-2 shrink-0 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

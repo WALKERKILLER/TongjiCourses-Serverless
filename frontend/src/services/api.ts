@@ -13,12 +13,31 @@ async function fetchWithTimeout(url: string, options?: RequestInit, timeout = 15
   }
 }
 
-export async function fetchCourses(keyword?: string, legacy?: boolean, page = 1, limit = 20) {
+export async function fetchCourses(
+  keyword?: string,
+  legacy?: boolean,
+  page = 1,
+  limit = 20,
+  departments?: string[],
+  onlyWithReviews?: boolean
+) {
   let url = `${API_BASE}/api/courses?page=${page}&limit=${limit}&`
   if (keyword) url += `q=${encodeURIComponent(keyword)}&`
-  if (legacy) url += `legacy=true`
+  if (legacy) url += `legacy=true&`
+  if (departments && departments.length > 0) {
+    url += `departments=${encodeURIComponent(departments.join(','))}&`
+  }
+  if (onlyWithReviews) url += `onlyWithReviews=true&`
   const res = await fetchWithTimeout(url, undefined, 15000)
   if (!res.ok) throw new Error('Failed to fetch courses')
+  return res.json()
+}
+
+export async function fetchDepartments(legacy?: boolean) {
+  let url = `${API_BASE}/api/departments?`
+  if (legacy) url += `legacy=true`
+  const res = await fetchWithTimeout(url, undefined, 15000)
+  if (!res.ok) throw new Error('Failed to fetch departments')
   return res.json()
 }
 

@@ -49,10 +49,44 @@ app.get('/api/settings/show_icu', async (c) => {
   return c.json({ show_icu: setting?.value === 'true' })
 })
 
+// 获取开课单位列表
+app.get('/api/departments', async (c) => {
+  try {
+    const legacy = c.req.query('legacy')
+
+    // 检查是否显示 is_icu 数据
+    const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
+    const showIcu = setting?.value === 'true'
+
+    let whereClause = ' WHERE department IS NOT NULL AND department != ""'
+
+    // 当关闭乌龙茶显示时，过滤掉 is_icu=1 的课程
+    if (!showIcu) {
+      whereClause += ' AND (is_icu = 0 OR is_icu IS NULL)'
+    }
+
+    if (legacy === 'true') {
+      whereClause += ' AND is_legacy = 1'
+    } else {
+      whereClause += ' AND is_legacy = 0'
+    }
+
+    const query = `SELECT DISTINCT department FROM courses ${whereClause} ORDER BY department`
+    const { results } = await c.env.DB.prepare(query).all()
+
+    const departments = (results || []).map((row: any) => row.department)
+    return c.json({ departments })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 app.get('/api/courses', async (c) => {
   try {
     const keyword = c.req.query('q')
     const legacy = c.req.query('legacy')
+    const departments = c.req.query('departments') // 逗号分隔的开课单位列表
+    const onlyWithReviews = c.req.query('onlyWithReviews') === 'true'
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
@@ -79,6 +113,21 @@ app.get('/api/courses', async (c) => {
       baseWhere += ' AND (c.search_keywords LIKE ? OR c.code LIKE ? OR c.name LIKE ? OR t.name LIKE ?)'
       const likeKey = `%${keyword}%`
       params = [likeKey, likeKey, likeKey, likeKey]
+    }
+
+    // 开课单位筛选
+    if (departments) {
+      const deptList = departments.split(',').filter(d => d.trim())
+      if (deptList.length > 0) {
+        const placeholders = deptList.map(() => '?').join(',')
+        baseWhere += ` AND c.department IN (${placeholders})`
+        params.push(...deptList)
+      }
+    }
+
+    // 只看有评价的课程
+    if (onlyWithReviews) {
+      baseWhere += ' AND c.review_count > 0'
     }
 
     // 获取总数

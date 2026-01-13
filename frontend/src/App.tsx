@@ -1,22 +1,28 @@
 import { Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
+import Footer from './components/Footer'
 import Courses from './pages/Courses'
 import Course from './pages/Course'
 import WriteReview from './pages/WriteReview'
 import Admin from './pages/Admin'
+import About from './pages/About'
+import FAQ from './pages/FAQ'
 
 export default function App() {
   return (
-    <div className="min-h-screen text-slate-800 pb-20">
+    <div className="min-h-screen text-slate-800 flex flex-col">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 mt-6 md:mt-8">
+      <main className="max-w-7xl mx-auto px-4 mt-6 md:mt-8 flex-1 w-full">
         <Routes>
           <Route path="/" element={<Courses />} />
           <Route path="/course/:id" element={<Course />} />
           <Route path="/write-review/:id" element={<WriteReview />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/faq" element={<FAQ />} />
         </Routes>
       </main>
+      <Footer />
     </div>
   )
 }
