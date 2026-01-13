@@ -11,6 +11,8 @@ interface Review {
   comment: string
   semester: string
   created_at: number
+  reviewer_name?: string
+  reviewer_avatar?: string
 }
 
 interface CourseData {
@@ -118,11 +120,19 @@ export default function Course() {
             <GlassCard key={review.id} hover={false} className="!p-5">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center text-cyan-700 text-sm font-bold border-2 border-white shadow-sm">
-                    匿
-                  </div>
+                  {review.reviewer_avatar ? (
+                    <img
+                      src={review.reviewer_avatar}
+                      alt=""
+                      className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center text-cyan-700 text-sm font-bold border-2 border-white shadow-sm">
+                      匿
+                    </div>
+                  )}
                   <div>
-                    <p className="text-sm font-bold text-slate-700">匿名用户</p>
+                    <p className="text-sm font-bold text-slate-700">{review.reviewer_name || '匿名用户'}</p>
                     <p className="text-[10px] text-slate-400">{review.semester} · {new Date(review.created_at * 1000).toLocaleDateString()}</p>
                   </div>
                 </div>

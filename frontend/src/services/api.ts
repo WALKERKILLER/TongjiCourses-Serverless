@@ -34,6 +34,8 @@ export async function submitReview(data: {
   comment: string
   semester: string
   turnstile_token: string
+  reviewer_name?: string
+  reviewer_avatar?: string
 }) {
   const res = await fetchWithTimeout(`${API_BASE}/api/review`, {
     method: 'POST',

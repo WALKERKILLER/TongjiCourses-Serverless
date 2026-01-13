@@ -1,19 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import Turnstile from 'react-turnstile'
 import { fetchCourse, submitReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import MarkdownEditor from '../components/MarkdownEditor'
-
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || ''
+import TongjiCaptchaWidget from '../components/TongjiCaptchaWidget'
 
 const REVIEW_TEMPLATE = `## 考核方式：
 
 
 ## 授课质量与给分：
-
-
-## 点评人（可选）：
 
 
 ## 上课学期：
@@ -28,6 +23,21 @@ export default function WriteReview() {
   const [comment, setComment] = useState(REVIEW_TEMPLATE)
   const [token, setToken] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // 点评人设置
+  const [showReviewer, setShowReviewer] = useState(false)
+  const [reviewerName, setReviewerName] = useState('')
+  const [avatarType, setAvatarType] = useState<'random' | 'qq'>('random')
+  const [qqNumber, setQqNumber] = useState('')
+  const [randomSeed] = useState(() => Math.random().toString(36).slice(2, 10))
+
+  const getAvatarUrl = () => {
+    if (!showReviewer) return ''
+    if (avatarType === 'qq' && qqNumber) {
+      return `https://q1.qlogo.cn/g?b=qq&nk=${qqNumber}&s=640`
+    }
+    return `https://api.dicebear.com/7.x/notionists/svg?seed=${randomSeed}`
+  }
 
   useEffect(() => {
     if (id) fetchCourse(id).then(setCourse)
@@ -44,7 +54,9 @@ export default function WriteReview() {
         rating,
         comment,
         semester: '',
-        turnstile_token: token
+        turnstile_token: token,
+        reviewer_name: showReviewer ? reviewerName : '',
+        reviewer_avatar: getAvatarUrl()
       })
       if (res.success) {
         alert('点评提交成功！')
@@ -119,12 +131,90 @@ export default function WriteReview() {
           />
         </div>
 
-        {/* Turnstile */}
-        {TURNSTILE_SITE_KEY && (
-          <div className="mb-6">
-            <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setToken} />
+        {/* 点评人设置 */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-semibold text-slate-600">显示点评人信息</label>
+            <button
+              type="button"
+              onClick={() => setShowReviewer(!showReviewer)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${showReviewer ? 'bg-cyan-500' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${showReviewer ? 'left-7' : 'left-1'}`} />
+            </button>
           </div>
-        )}
+
+          {showReviewer && (
+            <div className="p-4 bg-white/60 backdrop-blur rounded-2xl border border-white space-y-4">
+              {/* 昵称 */}
+              <div>
+                <label className="block mb-2 text-xs font-medium text-slate-500">昵称</label>
+                <input
+                  type="text"
+                  value={reviewerName}
+                  onChange={e => setReviewerName(e.target.value)}
+                  placeholder="输入你想显示的昵称"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-cyan-400"
+                  maxLength={20}
+                />
+              </div>
+
+              {/* 头像选择 */}
+              <div>
+                <label className="block mb-2 text-xs font-medium text-slate-500">头像</label>
+                <div className="flex gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setAvatarType('random')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm border transition-all ${avatarType === 'random' ? 'border-cyan-400 bg-cyan-50 text-cyan-600' : 'border-slate-200 text-slate-500'}`}
+                  >
+                    随机头像
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAvatarType('qq')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm border transition-all ${avatarType === 'qq' ? 'border-cyan-400 bg-cyan-50 text-cyan-600' : 'border-slate-200 text-slate-500'}`}
+                  >
+                    QQ头像
+                  </button>
+                </div>
+
+                {avatarType === 'qq' && (
+                  <div>
+                    <input
+                      type="text"
+                      value={qqNumber}
+                      onChange={e => setQqNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="输入QQ号"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-cyan-400"
+                    />
+                    <p className="mt-1 text-xs text-slate-400">我们只存储头像链接，不会公开你的 QQ 号</p>
+                  </div>
+                )}
+
+                {/* 头像预览 */}
+                <div className="mt-3 flex items-center gap-3">
+                  <img
+                    src={getAvatarUrl()}
+                    alt="头像预览"
+                    className="w-12 h-12 rounded-full bg-slate-100 object-cover"
+                  />
+                  <span className="text-sm text-slate-500">头像预览</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!showReviewer && (
+            <p className="text-xs text-slate-400">关闭后将以"匿名用户"身份发布点评</p>
+          )}
+        </div>
+
+        {/* 人机验证 */}
+        <div className="mb-6">
+          <label className="block mb-3 text-sm font-semibold text-slate-600">人机验证</label>
+          <TongjiCaptchaWidget onVerify={setToken} />
+        </div>
 
         {/* Submit Button */}
         <button

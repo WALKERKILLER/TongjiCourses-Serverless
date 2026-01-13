@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { fetchCourses } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import Logo from '../components/Logo'
@@ -17,11 +17,12 @@ interface CourseItem {
 }
 
 export default function Courses() {
+  const location = useLocation()
   const [courses, setCourses] = useState<CourseItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showLegacy, setShowLegacy] = useState(true)
+  const [showLegacy, setShowLegacy] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -45,7 +46,10 @@ export default function Courses() {
     }
   }
 
-  useEffect(() => { search() }, [])
+  // 每次返回首页时刷新数据
+  useEffect(() => {
+    if (location.pathname === '/') search()
+  }, [location.key])
 
   const toggleLegacy = () => {
     const newValue = !showLegacy
@@ -135,10 +139,10 @@ export default function Courses() {
             <span className="text-sm text-slate-400">共 {total} 门课程</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 500px' }}>
             {courses.map((course) => (
-              <Link key={course.id} to={`/course/${course.id}`}>
-                <GlassCard className="min-h-[160px] flex flex-col justify-between group">
+              <Link key={course.id} to={`/course/${course.id}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 180px' }}>
+                <GlassCard className="h-[180px] flex flex-col justify-between group">
                   <div>
                     <div className="flex justify-between items-start mb-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded-md border ${course.is_legacy ? 'text-amber-600 bg-amber-50 border-amber-100' : 'text-cyan-600 bg-cyan-50 border-cyan-100'}`}>

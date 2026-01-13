@@ -47,8 +47,19 @@ CREATE TABLE reviews (
     disapprove_count INTEGER DEFAULT 0,
     is_hidden BOOLEAN DEFAULT 0,
     is_legacy INTEGER DEFAULT 0,
+    reviewer_name TEXT DEFAULT '',
+    reviewer_avatar TEXT DEFAULT '',
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
+
+-- 设置表
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
+-- 默认设置：乌龙茶评论不显示
+INSERT OR IGNORE INTO settings (key, value) VALUES ('show_legacy_reviews', 'false');
 
 -- 索引
 CREATE INDEX idx_courses_code ON courses(code);
