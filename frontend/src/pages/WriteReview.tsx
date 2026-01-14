@@ -4,18 +4,22 @@ import { fetchCourse, submitReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import MarkdownEditor from '../components/MarkdownEditor'
 import MarkdownToolbar from '../components/MarkdownToolbar'
-import TemplateSelector from '../components/TemplateSelector'
+import TemplateSelector, { TEMPLATE_HINTS, TemplateHints } from '../components/TemplateSelector'
 import TongjiCaptchaWidget from '../components/TongjiCaptchaWidget'
 
 const REVIEW_TEMPLATE = `## 考核方式：
 
-
 ## 授课质量与给分：
 
-
 ## 上课学期：
-
 `
+
+// 默认模板的提示
+const DEFAULT_HINTS: TemplateHints = {
+  '## 考核方式：': '描述考试形式、作业要求等',
+  '## 授课质量与给分：': '描述老师的教学质量和给分情况',
+  '## 上课学期：': '填写你上这门课的学期，如 2024春'
+}
 
 export default function WriteReview() {
   const { id } = useParams()
@@ -23,6 +27,7 @@ export default function WriteReview() {
   const [course, setCourse] = useState<{ name: string; code: string } | null>(null)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState(REVIEW_TEMPLATE)
+  const [currentHints, setCurrentHints] = useState<TemplateHints>(DEFAULT_HINTS)
   const [token, setToken] = useState('')
   const [loading, setLoading] = useState(false)
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
@@ -115,8 +120,16 @@ export default function WriteReview() {
     setShowTemplateSelector(true)
   }
 
-  const handleTemplateSelect = (template: string) => {
+  const handleTemplateSelect = (template: string, templateId?: string) => {
     setComment(template || REVIEW_TEMPLATE)
+    // 根据模板ID设置对应的提示
+    if (templateId && TEMPLATE_HINTS[templateId]) {
+      setCurrentHints(TEMPLATE_HINTS[templateId])
+    } else if (!template) {
+      setCurrentHints(DEFAULT_HINTS)
+    } else {
+      setCurrentHints({}) // 空白模板或未知模板不显示提示
+    }
   }
 
   const handleSubmit = async () => {
@@ -245,6 +258,7 @@ export default function WriteReview() {
             value={comment}
             onChange={setComment}
             placeholder="请按照模板填写课程点评..."
+            hints={currentHints}
           />
         </div>
 

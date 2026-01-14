@@ -11,7 +11,12 @@ interface Template {
 interface TemplateSelectorProps {
   isOpen: boolean
   onClose: () => void
-  onSelect: (content: string) => void
+  onSelect: (content: string, templateId?: string) => void
+}
+
+// 模板提示信息：key是标题行，value是对应的提示文本
+export interface TemplateHints {
+  [key: string]: string
 }
 
 const TEMPLATES: Template[] = [
@@ -25,16 +30,13 @@ const TEMPLATES: Template[] = [
     ),
     description: '包含课程内容、教学方式、考核方式等全面评价',
     content: `## 课程内容
-[描述课程主要内容、知识点覆盖范围]
 
 ## 教学方式
-[描述老师的教学风格、课堂互动情况]
 
 ## 作业与考核
-[描述作业量、考试难度、评分标准]
 
 ## 收获与建议
-[总结课程收获，给出选课建议]`
+`
   },
   {
     id: 'quick',
@@ -45,7 +47,7 @@ const TEMPLATES: Template[] = [
       </svg>
     ),
     description: '简洁明了的快速评价',
-    content: `**总体评价：** [一句话总结]
+    content: `**总体评价：**
 
 **优点：**
 -
@@ -53,7 +55,8 @@ const TEMPLATES: Template[] = [
 **缺点：**
 -
 
-**建议：** `
+**建议：**
+`
   },
   {
     id: 'teacher-focused',
@@ -65,16 +68,13 @@ const TEMPLATES: Template[] = [
     ),
     description: '重点评价教师教学水平和风格',
     content: `## 教学态度
-[描述老师的教学态度、责任心]
 
 ## 授课风格
-[描述老师的讲课方式、表达能力]
 
 ## 师生互动
-[描述课堂互动、答疑情况]
 
 ## 总体印象
-[总结对老师的整体评价]`
+`
   },
   {
     id: 'exam-focused',
@@ -86,16 +86,13 @@ const TEMPLATES: Template[] = [
     ),
     description: '重点介绍考试形式和备考建议',
     content: `## 考试形式
-[描述考试类型：开卷/闭卷、题型分布]
 
 ## 考试难度
-[描述考试难度、与平时作业的关系]
 
 ## 备考建议
-[给出具体的复习建议、重点内容]
 
 ## 给分情况
-[描述老师的给分风格、是否有调分]`
+`
   },
   {
     id: 'workload',
@@ -107,16 +104,13 @@ const TEMPLATES: Template[] = [
     ),
     description: '重点评价课程工作量和时间投入',
     content: `## 课时安排
-[描述每周课时、上课时间]
 
 ## 作业量
-[描述作业频率、完成时间]
 
 ## 项目/实验
-[描述是否有项目或实验、工作量如何]
 
 ## 时间投入
-[总结课程总体时间投入、性价比]`
+`
   },
   {
     id: 'blank',
@@ -131,9 +125,43 @@ const TEMPLATES: Template[] = [
   }
 ]
 
+// 模板对应的提示文本映射
+export const TEMPLATE_HINTS: { [templateId: string]: TemplateHints } = {
+  comprehensive: {
+    '## 课程内容': '描述课程主要内容、知识点覆盖范围',
+    '## 教学方式': '描述老师的教学风格、课堂互动情况',
+    '## 作业与考核': '描述作业量、考试难度、评分标准',
+    '## 收获与建议': '总结课程收获，给出选课建议'
+  },
+  quick: {
+    '**总体评价：**': '一句话总结',
+    '**优点：**': '列出课程优点',
+    '**缺点：**': '列出课程缺点',
+    '**建议：**': '给后来者的建议'
+  },
+  'teacher-focused': {
+    '## 教学态度': '描述老师的教学态度、责任心',
+    '## 授课风格': '描述老师的讲课方式、表达能力',
+    '## 师生互动': '描述课堂互动、答疑情况',
+    '## 总体印象': '总结对老师的整体评价'
+  },
+  'exam-focused': {
+    '## 考试形式': '描述考试类型：开卷/闭卷、题型分布',
+    '## 考试难度': '描述考试难度、与平时作业的关系',
+    '## 备考建议': '给出具体的复习建议、重点内容',
+    '## 给分情况': '描述老师的给分风格、是否有调分'
+  },
+  workload: {
+    '## 课时安排': '描述每周课时、上课时间',
+    '## 作业量': '描述作业频率、完成时间',
+    '## 项目/实验': '描述是否有项目或实验、工作量如何',
+    '## 时间投入': '总结课程总体时间投入、性价比'
+  }
+}
+
 export default function TemplateSelector({ isOpen, onClose, onSelect }: TemplateSelectorProps) {
   const handleSelect = (template: Template) => {
-    onSelect(template.content)
+    onSelect(template.content, template.id)
     onClose()
   }
 

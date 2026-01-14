@@ -1,18 +1,72 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import SegmentedControl from './SegmentedControl'
+import { TemplateHints } from './TemplateSelector'
 
 interface MarkdownEditorProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
   onInsertText?: (before: string, after?: string) => void
+  hints?: TemplateHints // 模板提示信息
 }
 
 type ViewMode = 'edit' | 'preview' | 'help'
 
-export default function MarkdownEditor({ value, onChange, placeholder, onInsertText }: MarkdownEditorProps) {
+export default function MarkdownEditor({ value, onChange, placeholder, onInsertText, hints }: MarkdownEditorProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('edit')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  // 同步滚动
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = e.currentTarget.scrollTop
+      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+    }
+  }
+
+  // 生成带提示的 overlay 内容
+  const generateOverlayContent = useMemo(() => {
+    if (!hints || Object.keys(hints).length === 0) return null
+
+    const lines = value.split('\n')
+    const result: React.ReactNode[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const trimmedLine = line.trim()
+
+      // 检查是否是标题行
+      let matchedHint: string | null = null
+      for (const [header, hint] of Object.entries(hints)) {
+        if (trimmedLine === header || trimmedLine.startsWith(header)) {
+          // 检查下一行是否为空或只有空白
+          const nextLine = lines[i + 1]
+          if (nextLine === undefined || nextLine.trim() === '' || nextLine.trim() === '-') {
+            matchedHint = hint
+          }
+          break
+        }
+      }
+
+      if (matchedHint && i + 1 < lines.length) {
+        // 当前行是标题，显示原文
+        result.push(<div key={i} className="whitespace-pre">{line || '\u00A0'}</div>)
+        // 下一行显示提示
+        i++
+        result.push(
+          <div key={i} className="whitespace-pre text-slate-400 italic">
+            {matchedHint}
+          </div>
+        )
+      } else {
+        // 普通行，显示透明占位
+        result.push(<div key={i} className="whitespace-pre text-transparent">{line || '\u00A0'}</div>)
+      }
+    }
+
+    return result
+  }, [value, hints])
 
   // 完整的 markdown 渲染函数
   const renderMarkdown = (text: string) => {
@@ -96,13 +150,25 @@ export default function MarkdownEditor({ value, onChange, placeholder, onInsertT
             <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
               <span className="text-sm font-semibold text-slate-600">编辑</span>
             </div>
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={placeholder}
-              className="flex-1 w-full p-4 border-none bg-transparent resize-none font-mono text-sm leading-relaxed text-slate-700 outline-none min-h-[400px]"
-            />
+            <div className="relative flex-1">
+              {/* 提示层 overlay */}
+              {generateOverlayContent && (
+                <div
+                  ref={overlayRef}
+                  className="absolute inset-0 p-4 pointer-events-none overflow-hidden font-mono text-sm leading-relaxed"
+                >
+                  {generateOverlayContent}
+                </div>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onScroll={handleScroll}
+                placeholder={placeholder}
+                className="relative z-10 w-full h-full p-4 border-none bg-transparent resize-none font-mono text-sm leading-relaxed text-slate-700 outline-none min-h-[400px]"
+              />
+            </div>
           </div>
 
           {/* 右侧预览区 */}
@@ -125,13 +191,24 @@ export default function MarkdownEditor({ value, onChange, placeholder, onInsertT
               <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
                 <span className="text-sm font-semibold text-slate-600">编辑评论</span>
               </div>
-              <textarea
-                ref={textareaRef}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={placeholder}
-                className="w-full p-4 border-none bg-transparent resize-none font-mono text-sm leading-relaxed text-slate-700 outline-none min-h-[300px]"
-              />
+              <div className="relative">
+                {/* 提示层 overlay */}
+                {generateOverlayContent && (
+                  <div
+                    className="absolute inset-0 p-4 pointer-events-none overflow-hidden font-mono text-sm leading-relaxed"
+                  >
+                    {generateOverlayContent}
+                  </div>
+                )}
+                <textarea
+                  ref={textareaRef}
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  onScroll={handleScroll}
+                  placeholder={placeholder}
+                  className="relative z-10 w-full p-4 border-none bg-transparent resize-none font-mono text-sm leading-relaxed text-slate-700 outline-none min-h-[300px]"
+                />
+              </div>
             </div>
           )}
 
