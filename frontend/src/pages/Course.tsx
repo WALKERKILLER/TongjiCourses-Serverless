@@ -31,10 +31,15 @@ interface CourseData {
 export default function Course() {
   const { id } = useParams()
   const [course, setCourse] = useState<CourseData | null>(null)
+  const [displayCount, setDisplayCount] = useState(20) // 初始显示20条评论
 
   useEffect(() => {
     if (id) fetchCourse(id).then(setCourse)
   }, [id])
+
+  const handleLoadMore = () => {
+    setDisplayCount(prev => prev + 20)
+  }
 
   if (!course) return (
     <div className="flex flex-col items-center justify-center py-20">
@@ -117,50 +122,67 @@ export default function Course() {
         </div>
 
         {course.reviews?.length > 0 ? (
-          course.reviews.map((review) => (
-            <GlassCard key={review.id} hover={false} className="!p-5">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                  {review.reviewer_avatar ? (
-                    <img
-                      src={review.reviewer_avatar}
-                      alt=""
-                      className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center text-cyan-700 text-sm font-bold border-2 border-white shadow-sm">
-                      匿
+          <>
+            {course.reviews.slice(0, displayCount).map((review) => (
+              <GlassCard key={review.id} hover={false} className="!p-5">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-3">
+                    {review.reviewer_avatar ? (
+                      <img
+                        src={review.reviewer_avatar}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center text-cyan-700 text-sm font-bold border-2 border-white shadow-sm">
+                        匿
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">{review.reviewer_name || '匿名用户'}</p>
+                      <p className="text-[10px] text-slate-400">{review.semester} · {new Date(review.created_at * 1000).toLocaleDateString()}</p>
                     </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-bold text-slate-700">{review.reviewer_name || '匿名用户'}</p>
-                    <p className="text-[10px] text-slate-400">{review.semester} · {new Date(review.created_at * 1000).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <svg key={s} className={`w-4 h-4 ${s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    ))}
                   </div>
                 </div>
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <svg key={s} className={`w-4 h-4 ${s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} viewBox="0 0 24 24">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+
+                <div className="text-slate-600 text-sm leading-relaxed mb-3">
+                  <CollapsibleMarkdown content={review.comment} maxLength={300} />
+                </div>
+
+                {/* 评论唯一标识符 */}
+                {review.sqid && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
                     </svg>
-                  ))}
-                </div>
-              </div>
+                    <span className="font-mono">{review.sqid}</span>
+                  </div>
+                )}
+              </GlassCard>
+            ))}
 
-              <div className="text-slate-600 text-sm leading-relaxed mb-3">
-                <CollapsibleMarkdown content={review.comment} maxLength={300} />
-              </div>
-
-              {/* 评论唯一标识符 */}
-              {review.sqid && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+            {/* 加载更多按钮 */}
+            {displayCount < course.reviews.length && (
+              <div className="flex justify-center pt-2">
+                <button
+                  onClick={handleLoadMore}
+                  className="px-6 py-3 bg-white/70 hover:bg-white/90 backdrop-blur-sm border border-white/60 rounded-2xl font-semibold text-slate-700 shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
-                  <span className="font-mono">{review.sqid}</span>
-                </div>
-              )}
-            </GlassCard>
-          ))
+                  加载更多 ({course.reviews.length - displayCount} 条)
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 bg-white/50 rounded-3xl border border-dashed border-slate-200">
             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-3">
