@@ -7,6 +7,7 @@ import Logo from '../components/Logo'
 
 interface Review {
   id: number
+  sqid?: string
   rating: number
   comment: string
   semester: string
@@ -145,9 +146,19 @@ export default function Course() {
                 </div>
               </div>
 
-              <div className="text-slate-600 text-sm leading-relaxed">
+              <div className="text-slate-600 text-sm leading-relaxed mb-3">
                 <CollapsibleMarkdown content={review.comment} maxLength={300} />
               </div>
+
+              {/* 评论唯一标识符 */}
+              {review.sqid && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                  </svg>
+                  <span className="font-mono">{review.sqid}</span>
+                </div>
+              )}
             </GlassCard>
           ))
         ) : (

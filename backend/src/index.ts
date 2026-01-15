@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { encodeReviewId, decodeReviewId } from './sqids'
 
 type Bindings = {
   DB: D1Database
@@ -41,6 +42,14 @@ async function verifyTongjiCaptcha(token: string, siteverifyUrl: string) {
     console.error('Captcha service error:', e)
     return false
   }
+}
+
+// 为评论添加 sqid 字段
+function addSqidToReviews(reviews: any[]): any[] {
+  return reviews.map(review => ({
+    ...review,
+    sqid: encodeReviewId(review.id)
+  }))
 }
 
 // 公开 API - 获取设置
@@ -176,8 +185,9 @@ app.get('/api/course/:id', async (c) => {
     reviewQuery += ` ORDER BY created_at DESC`
 
     const reviews = await c.env.DB.prepare(reviewQuery).bind(id).all()
+    const reviewsWithSqid = addSqidToReviews(reviews.results || [])
 
-    return c.json({ ...course, reviews: reviews.results || [] })
+    return c.json({ ...course, reviews: reviewsWithSqid })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -229,9 +239,18 @@ admin.get('/reviews', async (c) => {
     let params: string[] = []
 
     if (keyword) {
-      whereClause = 'WHERE c.name LIKE ? OR c.code LIKE ? OR r.comment LIKE ? OR r.reviewer_name LIKE ?'
-      const likeKey = `%${keyword}%`
-      params = [likeKey, likeKey, likeKey, likeKey]
+      // 尝试将关键词解码为数字ID（如果是sqid）
+      const decodedId = decodeReviewId(keyword)
+      if (decodedId !== null) {
+        // 如果是有效的sqid，直接按ID查询
+        whereClause = 'WHERE r.id = ?'
+        params = [decodedId.toString()]
+      } else {
+        // 否则按原来的方式模糊搜索
+        whereClause = 'WHERE c.name LIKE ? OR c.code LIKE ? OR r.comment LIKE ? OR r.reviewer_name LIKE ?'
+        const likeKey = `%${keyword}%`
+        params = [likeKey, likeKey, likeKey, likeKey]
+      }
     }
 
     const countQuery = `SELECT COUNT(*) as total FROM reviews r JOIN courses c ON r.course_id = c.id ${whereClause}`
@@ -247,7 +266,8 @@ admin.get('/reviews', async (c) => {
       LIMIT ? OFFSET ?
     `
     const { results } = await c.env.DB.prepare(query).bind(...params, limit, offset).all()
-    return c.json({ data: results || [], total, page, limit, totalPages: Math.ceil(total / limit) })
+    const reviewsWithSqid = addSqidToReviews(results || [])
+    return c.json({ data: reviewsWithSqid, total, page, limit, totalPages: Math.ceil(total / limit) })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

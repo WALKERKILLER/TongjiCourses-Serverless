@@ -9,6 +9,7 @@ const ACCESS_KEY = 'tjcourse2026admin'
 
 interface Review {
   id: number
+  sqid?: string
   course_id: number
   course_name: string
   code: string
@@ -346,10 +347,22 @@ export default function Admin() {
                     <div className="flex gap-0.5">{[1,2,3,4,5].map(s => <div key={s} className={`w-2 h-2 rounded-full ${s <= r.rating ? 'bg-amber-400' : 'bg-slate-200'}`} />)}</div>
                   </div>
                   <div className="text-sm text-slate-600 mb-2"><CollapsibleMarkdown content={r.comment} maxLength={150} /></div>
-                  <div className="flex gap-2 justify-end text-xs">
-                    <button onClick={() => (setEditingReviewId(r.id), setReviewEditForm({ comment: r.comment, rating: r.rating, reviewer_name: r.reviewer_name || '', reviewer_avatar: r.reviewer_avatar || '' }))} className="px-2 py-1 bg-slate-100 rounded">编辑</button>
-                    <button onClick={() => toggleHide(r.id)} className={`px-2 py-1 rounded ${r.is_hidden ? 'bg-green-100 text-green-600' : 'bg-slate-100'}`}>{r.is_hidden ? '显示' : '隐藏'}</button>
-                    <button onClick={() => deleteReview(r.id)} className="px-2 py-1 bg-red-100 text-red-600 rounded">删除</button>
+                  <div className="flex items-center justify-between text-xs">
+                    {/* 左侧：sqid 标识符 */}
+                    {r.sqid && (
+                      <div className="flex items-center gap-1 text-slate-400">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                        </svg>
+                        <span className="font-mono">{r.sqid}</span>
+                      </div>
+                    )}
+                    {/* 右侧：操作按钮 */}
+                    <div className="flex gap-2">
+                      <button onClick={() => (setEditingReviewId(r.id), setReviewEditForm({ comment: r.comment, rating: r.rating, reviewer_name: r.reviewer_name || '', reviewer_avatar: r.reviewer_avatar || '' }))} className="px-2 py-1 bg-slate-100 rounded">编辑</button>
+                      <button onClick={() => toggleHide(r.id)} className={`px-2 py-1 rounded ${r.is_hidden ? 'bg-green-100 text-green-600' : 'bg-slate-100'}`}>{r.is_hidden ? '显示' : '隐藏'}</button>
+                      <button onClick={() => deleteReview(r.id)} className="px-2 py-1 bg-red-100 text-red-600 rounded">删除</button>
+                    </div>
                   </div>
                 </>
               )}
