@@ -12,6 +12,7 @@ declare global {
 
 export default function Feedback() {
   const walineRef = useRef<HTMLDivElement>(null)
+  const walineServerUrl = import.meta.env.VITE_WALINE_SERVER_URL || ''
 
   useEffect(() => {
     // 动态加载 Waline CSS
@@ -32,10 +33,11 @@ export default function Feedback() {
 
     // 等待 Waline 加载完成后初始化
     const handleWalineLoaded = () => {
+      if (!walineServerUrl) return
       if (window.Waline && walineRef.current) {
         window.Waline.init({
           el: walineRef.current,
-          serverURL: 'https://waline.07211024.xyz',
+          serverURL: walineServerUrl,
           lang: 'zh-CN',
           locale: {
             placeholder: '欢迎留言反馈，说说你的想法吧...',
@@ -90,7 +92,7 @@ export default function Feedback() {
       document.body.removeChild(script)
       window.removeEventListener('waline-loaded', handleWalineLoaded)
     }
-  }, [])
+  }, [walineServerUrl])
 
   return (
     <div className="space-y-6">

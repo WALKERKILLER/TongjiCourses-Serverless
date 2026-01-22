@@ -8,7 +8,8 @@
     "db:init": "wrangler d1 execute jcourse-db --file=./schema.sql"
   },
   "dependencies": {
-    "hono": "^4.0.0"
+    "hono": "^4.0.0",
+    "sqids": "^0.3.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
