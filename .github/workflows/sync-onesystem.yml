@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[pk-sync]'))
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[pk-sync-cookie]'))
     steps:
       - name: Resolve calendarId/depth
         id: resolve
@@ -43,7 +43,7 @@ jobs:
           depth="$(echo "$msg" | sed -nE 's/.*depth=([0-9]+).*/\1/p' | head -n1)"
 
           if [ -z "$calendarId" ]; then
-            echo "Missing calendarId in commit message. Example: [pk-sync] calendarId=121 depth=1" >&2
+            echo "Missing calendarId in commit message. Example: [pk-sync-cookie] calendarId=121 depth=1" >&2
             exit 1
           fi
 
