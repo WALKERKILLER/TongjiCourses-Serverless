@@ -252,14 +252,55 @@ app.get('/api/course/by-code/:code', async (c) => {
       return c.json({ error: 'Course not found' }, 404)
     }
 
-    let reviewQuery = `SELECT * FROM reviews WHERE course_id = ? AND is_hidden = 0`
-    if (!showIcu) reviewQuery += ` AND is_icu = 0`
-    reviewQuery += ` ORDER BY created_at DESC LIMIT 30`
+    // 评价匹配策略（跨学期）：
+    // - 同课程 code（含 alias 命中后的 canonical code）
+    // - 同课程名 + 同教师（如果有教师）
+    const matchedIds = new Set<number>([Number(courseId)])
 
-    const reviews = await c.env.DB.prepare(reviewQuery).bind(courseId).all()
+    const sameCodeRows = await c.env.DB
+      .prepare('SELECT id FROM courses WHERE code = ?')
+      .bind((course as any).code)
+      .all<{ id: number }>()
+    for (const r of sameCodeRows.results || []) matchedIds.add(Number((r as any).id))
+
+    if ((course as any).teacher_id) {
+      const sameNameTeacherRows = await c.env.DB
+        .prepare('SELECT id FROM courses WHERE name = ? AND teacher_id = ?')
+        .bind((course as any).name, (course as any).teacher_id)
+        .all<{ id: number }>()
+      for (const r of sameNameTeacherRows.results || []) matchedIds.add(Number((r as any).id))
+    }
+
+    const idList = Array.from(matchedIds).filter((n) => Number.isFinite(n))
+    if (idList.length === 0) return c.json({ error: 'Course not found' }, 404)
+
+    const placeholders = idList.map(() => '?').join(',')
+
+    let baseWhere = `course_id IN (${placeholders}) AND is_hidden = 0`
+    if (!showIcu) baseWhere += ` AND is_icu = 0`
+
+    const reviews = await c.env.DB
+      .prepare(`SELECT * FROM reviews WHERE ${baseWhere} ORDER BY created_at DESC LIMIT 30`)
+      .bind(...idList)
+      .all()
     const reviewsWithSqid = addSqidToReviews(reviews.results || [])
 
-    return c.json({ ...course, reviews: reviewsWithSqid })
+    const countRow = await c.env.DB
+      .prepare(`SELECT COUNT(*) as cnt FROM reviews WHERE ${baseWhere}`)
+      .bind(...idList)
+      .first<{ cnt: number }>()
+
+    const avgRow = await c.env.DB
+      .prepare(`SELECT AVG(rating) as avg FROM reviews WHERE ${baseWhere} AND rating > 0`)
+      .bind(...idList)
+      .first<{ avg: number | null }>()
+
+    return c.json({
+      ...(course as any),
+      review_count: Number(countRow?.cnt || 0),
+      review_avg: avgRow?.avg === null || avgRow?.avg === undefined ? 0 : Number(avgRow.avg),
+      reviews: reviewsWithSqid
+    })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

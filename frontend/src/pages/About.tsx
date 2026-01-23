@@ -9,8 +9,8 @@ export default function About() {
         <div className="prose prose-slate max-w-none">
           <h4 className="text-xl font-semibold text-slate-800 mb-3">简介</h4>
           <p className="text-slate-600 mb-6">
-            YOURTJ备用选课社区为非官方网站，由同济大学在校生开发维护。
-            备用选课社区目的在于让同学们了解课程的更多情况，延续"乌龙茶"选课社区精神，不想也不能代替教务处的课程评教。我们的愿景是：建立不记名，自由，简洁，高效的选课社区。
+            YOURTJ选课社区为非官方网站，由同济大学在校生开发维护。
+            选课社区目的在于让同学们了解课程的更多情况，延续"乌龙茶"选课社区精神，不想也不能代替教务处的课程评教。我们的愿景是：建立不记名，自由，简洁，高效的选课社区。
           </p>
 
           <h4 className="text-xl font-semibold text-slate-800 mb-3">机制</h4>

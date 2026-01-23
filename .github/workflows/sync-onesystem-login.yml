@@ -115,7 +115,10 @@ jobs:
 
       - name: Ensure pk tables on D1 (remote)
         working-directory: backend
-        run: npx wrangler d1 execute jcourse-db --remote --file="./migrations/001_pk_schema.sql"
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute jcourse-db --remote --file="./migrations/001_pk_schema.sql"
+          npx wrangler d1 execute jcourse-db --remote --file="./migrations/002_pk_schema_patch.sql"
 
       - name: Login & export SQL
         working-directory: backend
@@ -139,6 +142,13 @@ jobs:
             echo "Applying $f" | tee -a pk-apply.log
             npx wrangler d1 execute jcourse-db --remote --file="$f" 2>&1 | tee -a pk-apply.log
           done
+
+      - name: Materialize pk courses to review site tables (remote)
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler d1 execute jcourse-db --remote --file="./migrations/010_materialize_courses_from_pk.sql"
 
       - name: Post-check via backend API
         shell: bash

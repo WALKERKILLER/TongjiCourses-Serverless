@@ -236,6 +236,7 @@ def main() -> int:
             f.write(f"DELETE FROM majorandcourse WHERE courseId IN (SELECT id FROM coursedetail WHERE calendarId = {cid});\n")
             f.write(f"DELETE FROM coursedetail WHERE calendarId = {cid};\n")
             f.write(f"DELETE FROM calendar WHERE calendarId = {cid};\n")
+            f.write(f"DELETE FROM coursenature_by_calendar WHERE calendarId = {cid};\n")
 
             inserted = 0
             for course in courses:
@@ -267,10 +268,10 @@ def main() -> int:
                 if course_label_id_i is not None and course_label_id_i not in seen_course_nature:
                     seen_course_nature.add(course_label_id_i)
                     f.write(
-                        "INSERT INTO coursenature (courseLabelId, courseLabelName, calendarId) "
-                        f"VALUES ({course_label_id_i}, {sql_quote(course_label_name)}, {cid}) "
-                        "ON CONFLICT(courseLabelId) DO UPDATE SET "
-                        "courseLabelName=excluded.courseLabelName, calendarId=excluded.calendarId;\n"
+                        "INSERT INTO coursenature_by_calendar (calendarId, courseLabelId, courseLabelName) "
+                        f"VALUES ({cid}, {course_label_id_i}, {sql_quote(course_label_name)}) "
+                        "ON CONFLICT(calendarId, courseLabelId) DO UPDATE SET "
+                        "courseLabelName=excluded.courseLabelName;\n"
                     )
 
                 assessment_mode = str(course.get("assessmentMode") or "").strip() or None

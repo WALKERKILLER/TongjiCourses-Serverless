@@ -144,7 +144,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
            FROM coursedetail cd
            LEFT JOIN faculty f ON f.faculty = cd.faculty
            LEFT JOIN campus ca ON ca.campus = cd.campus
-           LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
+           LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
            LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
            WHERE cd.calendarId = ?
              AND cd.courseCode IN (${placeholders})
@@ -153,6 +153,52 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
         .bind(calendarId, ...part)
         .all<any>()
       if (cdRowsRes.results?.length) cdRowsAll.push(...(cdRowsRes.results || []))
+    }
+
+    const teachingClassIds = Array.from(
+      new Set(
+        (cdRowsAll || [])
+          .map((r: any) => Number(r?.id))
+          .filter((n: number) => Number.isFinite(n))
+      )
+    )
+
+    const teachersByClass = new Map<number, any[]>()
+    for (const part of chunk(teachingClassIds, MAX_SQL_VARS)) {
+      const placeholders = part.map(() => '?').join(',')
+      const { results } = await c.env.DB
+        .prepare(
+          `SELECT teachingClassId, teacherCode, teacherName, arrangeInfoText
+           FROM teacher
+           WHERE teachingClassId IN (${placeholders})`
+        )
+        .bind(...part)
+        .all<any>()
+
+      for (const t of results || []) {
+        const tcId = Number((t as any).teachingClassId)
+        if (!Number.isFinite(tcId)) continue
+        if (!teachersByClass.has(tcId)) teachersByClass.set(tcId, [])
+        teachersByClass.get(tcId)!.push(t)
+      }
+    }
+
+    const exclusiveSet = new Set<number>()
+    if (targetMajorId) {
+      for (const part of chunk(teachingClassIds, MAX_SQL_VARS)) {
+        const placeholders = part.map(() => '?').join(',')
+        const { results } = await c.env.DB
+          .prepare(
+            `SELECT courseId FROM majorandcourse WHERE majorId = ? AND courseId IN (${placeholders})`
+          )
+          .bind(targetMajorId, ...part)
+          .all<any>()
+
+        for (const r of results || []) {
+          const cid = Number((r as any).courseId)
+          if (Number.isFinite(cid)) exclusiveSet.add(cid)
+        }
+      }
     }
 
     const outMap = new Map<string, any>()
@@ -178,17 +224,10 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
         if (label && !target.courseNature.includes(label)) target.courseNature.push(label)
       }
 
-      const teachers = await getTeachers(c.env.DB, row.id)
+      const teachers = teachersByClass.get(Number(row.id)) || []
       const arrangementInfo = mergeArrangementInfo(teachers)
 
-      let isExclusive = false
-      if (targetMajorId) {
-        const ex = await c.env.DB
-          .prepare('SELECT 1 as ok FROM majorandcourse WHERE majorId = ? AND courseId = ? LIMIT 1')
-          .bind(targetMajorId, row.id)
-          .first<{ ok: number }>()
-        isExclusive = Boolean(ex?.ok)
-      }
+      const isExclusive = exclusiveSet.has(Number(row.id))
 
       outMap.get(courseCode).courses.push({
         code: String(row.code || ''),
@@ -226,7 +265,9 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     if (!Number.isFinite(calendarId)) return c.json(jsonErr(400, '参数错误: 缺少 calendarId'), 400)
 
     const { results } = await c.env.DB
-      .prepare('SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature WHERE calendarId = ? ORDER BY courseLabelId DESC')
+      .prepare(
+        "SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature_by_calendar WHERE calendarId = ? AND courseLabelName LIKE '%通识%' ORDER BY courseLabelId DESC"
+      )
       .bind(calendarId)
       .all<any>()
     return c.json(jsonOk(results || []))
@@ -252,7 +293,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
              f.facultyI18n as facultyI18n,
              GROUP_CONCAT(DISTINCT ca.campusI18n) as campus_list
            FROM coursedetail cd
-           LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
+           LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
            LEFT JOIN faculty f ON f.faculty = cd.faculty
            LEFT JOIN campus ca ON ca.campus = cd.campus
            WHERE cd.calendarId = ?
@@ -321,8 +362,41 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       const cc = String(row.courseCode || '')
       if (!cc) continue
       if (!byCourseCode.has(cc)) byCourseCode.set(cc, [])
+    }
 
-      const teachers = await getTeachers(c.env.DB, row.id)
+    const teachingClassIds = Array.from(
+      new Set(
+        (cdRowsAll || [])
+          .map((r: any) => Number(r?.id))
+          .filter((n: number) => Number.isFinite(n))
+      )
+    )
+
+    const teachersByClass = new Map<number, any[]>()
+    for (const part of chunk(teachingClassIds, MAX_SQL_VARS)) {
+      const placeholders = part.map(() => '?').join(',')
+      const { results } = await c.env.DB
+        .prepare(
+          `SELECT teachingClassId, teacherCode, teacherName, arrangeInfoText
+           FROM teacher
+           WHERE teachingClassId IN (${placeholders})`
+        )
+        .bind(...part)
+        .all<any>()
+
+      for (const t of results || []) {
+        const tcId = Number((t as any).teachingClassId)
+        if (!Number.isFinite(tcId)) continue
+        if (!teachersByClass.has(tcId)) teachersByClass.set(tcId, [])
+        teachersByClass.get(tcId)!.push(t)
+      }
+    }
+
+    for (const row of cdRowsAll) {
+      const cc = String(row.courseCode || '')
+      if (!cc) continue
+
+      const teachers = teachersByClass.get(Number(row.id)) || []
       const arrangementInfo = mergeArrangementInfo(teachers)
 
       byCourseCode.get(cc)!.push({
@@ -415,7 +489,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       FROM coursedetail cd
       LEFT JOIN faculty f ON f.faculty = cd.faculty
       LEFT JOIN campus ca ON ca.campus = cd.campus
-      LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
+      LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
       LEFT JOIN teacher t ON t.teachingClassId = cd.id
       ${whereSql}
       GROUP BY cd.courseCode, cd.courseName, f.facultyI18n
@@ -465,7 +539,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       JOIN teacher t ON t.teachingClassId = cd.id
       LEFT JOIN faculty f ON f.faculty = cd.faculty
       LEFT JOIN campus ca ON ca.campus = cd.campus
-      LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
+      LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
       WHERE cd.calendarId = ?
         AND (${orLike})
       GROUP BY cd.courseCode, cd.courseName, f.facultyI18n

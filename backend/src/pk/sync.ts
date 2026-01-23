@@ -69,6 +69,8 @@ async function deleteCalendarData(db: D1Database, calendarId: number) {
 
   await db.prepare('DELETE FROM coursedetail WHERE calendarId = ?').bind(calendarId).run()
   await db.prepare('DELETE FROM calendar WHERE calendarId = ?').bind(calendarId).run()
+  // keep other semesters; clear only this calendar's course nature cache
+  await db.prepare('DELETE FROM coursenature_by_calendar WHERE calendarId = ?').bind(calendarId).run()
 }
 
 async function ensurePkTables(db: D1Database) {
@@ -77,6 +79,11 @@ async function ensurePkTables(db: D1Database) {
   await db.prepare('CREATE TABLE IF NOT EXISTS calendar (calendarId INTEGER PRIMARY KEY, calendarIdI18n TEXT)').run()
   await db.prepare('CREATE TABLE IF NOT EXISTS language (teachingLanguage TEXT PRIMARY KEY, teachingLanguageI18n TEXT, calendarId INTEGER)').run()
   await db.prepare('CREATE TABLE IF NOT EXISTS coursenature (courseLabelId INTEGER PRIMARY KEY, courseLabelName TEXT, calendarId INTEGER)').run()
+  await db
+    .prepare(
+      'CREATE TABLE IF NOT EXISTS coursenature_by_calendar (calendarId INTEGER NOT NULL, courseLabelId INTEGER NOT NULL, courseLabelName TEXT, PRIMARY KEY (calendarId, courseLabelId))'
+    )
+    .run()
   await db.prepare('CREATE TABLE IF NOT EXISTS assessment (assessmentMode TEXT PRIMARY KEY, assessmentModeI18n TEXT, calendarId INTEGER)').run()
   await db.prepare('CREATE TABLE IF NOT EXISTS campus (campus TEXT PRIMARY KEY, campusI18n TEXT, calendarId INTEGER)').run()
   await db.prepare('CREATE TABLE IF NOT EXISTS faculty (faculty TEXT PRIMARY KEY, facultyI18n TEXT, calendarId INTEGER)').run()
@@ -148,11 +155,11 @@ async function upsertCourseList(db: D1Database, list: any[], calendarId: number)
       await push(
         db
           .prepare(
-            `INSERT INTO coursenature (courseLabelId, courseLabelName, calendarId)
+            `INSERT INTO coursenature_by_calendar (calendarId, courseLabelId, courseLabelName)
              VALUES (?, ?, ?)
-             ON CONFLICT(courseLabelId) DO UPDATE SET courseLabelName=excluded.courseLabelName, calendarId=excluded.calendarId`
+             ON CONFLICT(calendarId, courseLabelId) DO UPDATE SET courseLabelName=excluded.courseLabelName`
           )
-          .bind(courseLabelId, courseLabelName, calendarId)
+          .bind(calendarId, courseLabelId, courseLabelName)
       )
     }
 

@@ -4,6 +4,14 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './styles/index.css'
 
+try {
+  const api = import.meta.env.VITE_API_URL || ''
+  ;(window as any).__SIM_API_URL__ = api
+  localStorage.setItem('SIM_API_URL', api)
+} catch {
+  // ignore
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
