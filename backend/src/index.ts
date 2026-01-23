@@ -58,6 +58,13 @@ function addSqidToReviews(reviews: any[]): any[] {
   }))
 }
 
+async function ensureCourseAliasesTable(db: D1Database) {
+  await db.prepare(
+    "CREATE TABLE IF NOT EXISTS course_aliases (system TEXT NOT NULL, alias TEXT NOT NULL, course_id INTEGER NOT NULL, created_at INTEGER DEFAULT (strftime('%s','now')), PRIMARY KEY (system, alias))"
+  ).run()
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_course_aliases_course_id ON course_aliases(course_id)').run()
+}
+
 // 公开 API - 获取设置
 app.get('/api/settings/show_icu', async (c) => {
   const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
@@ -98,6 +105,7 @@ app.get('/api/departments', async (c) => {
 
 app.get('/api/courses', async (c) => {
   try {
+    await ensureCourseAliasesTable(c.env.DB)
     const keyword = c.req.query('q')
     const legacy = c.req.query('legacy')
     const departments = c.req.query('departments') // 逗号分隔的开课单位列表
@@ -152,12 +160,46 @@ app.get('/api/courses', async (c) => {
 
     // 获取分页数据
     const query = `
-      SELECT c.id, c.code, c.name, c.review_avg as rating, c.review_count, c.is_legacy, t.name as teacher_name
+      SELECT
+        c.id,
+        c.code,
+        c.name,
+        c.review_avg as rating,
+        c.review_count,
+        c.is_legacy,
+        t.name as teacher_name,
+        (
+          SELECT GROUP_CONCAT(x.calendarName, '||') FROM (
+            SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
+            FROM coursedetail cd2
+            JOIN calendar ca ON ca.calendarId = cd2.calendarId
+            WHERE (
+              cd2.courseCode = c.code
+              OR cd2.newCourseCode = c.code
+              OR EXISTS (
+                SELECT 1 FROM course_aliases a
+                WHERE a.system = 'onesystem'
+                  AND a.course_id = c.id
+                  AND (a.alias = cd2.courseCode OR a.alias = cd2.newCourseCode)
+              )
+            )
+            ORDER BY cd2.calendarId DESC
+          ) x
+        ) as semester_names
       FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${baseWhere}
       ORDER BY c.review_count DESC LIMIT ? OFFSET ?
     `
     const { results } = await c.env.DB.prepare(query).bind(...params, limit, offset).all()
-    return c.json({ data: results || [], total, page, limit, totalPages: Math.ceil(total / limit) })
+
+    const normalized = (results || []).map((r: any) => ({
+      ...r,
+      semesters: String(r.semester_names || '')
+        .split('||')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+    }))
+
+    return c.json({ data: normalized, total, page, limit, totalPages: Math.ceil(total / limit) })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -165,6 +207,7 @@ app.get('/api/courses', async (c) => {
 
 app.get('/api/course/:id', async (c) => {
   try {
+    await ensureCourseAliasesTable(c.env.DB)
     const id = c.req.param('id')
 
     // 检查是否显示乌龙茶数据
@@ -184,16 +227,83 @@ app.get('/api/course/:id', async (c) => {
       return c.json({ error: 'Course not found' }, 404)
     }
 
-    let reviewQuery = `SELECT * FROM reviews WHERE course_id = ? AND is_hidden = 0`
-    if (!showIcu) {
-      reviewQuery += ` AND is_icu = 0`
-    }
-    reviewQuery += ` ORDER BY created_at DESC`
+    // 评价匹配策略（跨学期）：
+    // - 同课程 code
+    // - 同课程名 + 同教师（如果有教师）
+    const matchedIds = new Set<number>([Number((course as any).id)])
 
-    const reviews = await c.env.DB.prepare(reviewQuery).bind(id).all()
+    const sameCodeRows = await c.env.DB
+      .prepare('SELECT id FROM courses WHERE code = ?')
+      .bind((course as any).code)
+      .all<{ id: number }>()
+    for (const r of sameCodeRows.results || []) matchedIds.add(Number((r as any).id))
+
+    if ((course as any).teacher_id) {
+      const sameNameTeacherRows = await c.env.DB
+        .prepare('SELECT id FROM courses WHERE name = ? AND teacher_id = ?')
+        .bind((course as any).name, (course as any).teacher_id)
+        .all<{ id: number }>()
+      for (const r of sameNameTeacherRows.results || []) matchedIds.add(Number((r as any).id))
+    }
+
+    const idList = Array.from(matchedIds).filter((n) => Number.isFinite(n))
+    if (idList.length === 0) return c.json({ error: 'Course not found' }, 404)
+
+    const placeholders = idList.map(() => '?').join(',')
+
+    let baseWhere = `course_id IN (${placeholders}) AND is_hidden = 0`
+    if (!showIcu) baseWhere += ` AND is_icu = 0`
+
+    const reviews = await c.env.DB
+      .prepare(`SELECT * FROM reviews WHERE ${baseWhere} ORDER BY created_at DESC`)
+      .bind(...idList)
+      .all()
     const reviewsWithSqid = addSqidToReviews(reviews.results || [])
 
-    return c.json({ ...course, reviews: reviewsWithSqid })
+    const countRow = await c.env.DB
+      .prepare(`SELECT COUNT(*) as cnt FROM reviews WHERE ${baseWhere}`)
+      .bind(...idList)
+      .first<{ cnt: number }>()
+
+    const avgRow = await c.env.DB
+      .prepare(`SELECT AVG(rating) as avg FROM reviews WHERE ${baseWhere} AND rating > 0`)
+      .bind(...idList)
+      .first<{ avg: number | null }>()
+
+    const semestersRow = await c.env.DB
+      .prepare(
+        `SELECT GROUP_CONCAT(x.calendarName, '||') as semester_names FROM (
+          SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
+          FROM coursedetail cd2
+          JOIN calendar ca ON ca.calendarId = cd2.calendarId
+          WHERE (
+            cd2.courseCode = ?
+            OR cd2.newCourseCode = ?
+            OR EXISTS (
+              SELECT 1 FROM course_aliases a
+              WHERE a.system = 'onesystem'
+                AND a.course_id = ?
+                AND (a.alias = cd2.courseCode OR a.alias = cd2.newCourseCode)
+            )
+          )
+          ORDER BY cd2.calendarId DESC
+        ) x`
+      )
+      .bind((course as any).code, (course as any).code, Number((course as any).id))
+      .first<{ semester_names: string | null }>()
+
+    const semesters = String(semestersRow?.semester_names || '')
+      .split('||')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    return c.json({
+      ...(course as any),
+      review_count: Number(countRow?.cnt || 0),
+      review_avg: avgRow?.avg === null || avgRow?.avg === undefined ? 0 : Number(avgRow.avg),
+      semesters,
+      reviews: reviewsWithSqid
+    })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -202,6 +312,7 @@ app.get('/api/course/:id', async (c) => {
 // 给排课模拟器侧边弹窗使用：按课号/新课号查找课程评价
 app.get('/api/course/by-code/:code', async (c) => {
   try {
+    await ensureCourseAliasesTable(c.env.DB)
     const code = (c.req.param('code') || '').trim()
     if (!code) return c.json({ error: 'Missing code' }, 400)
 
@@ -227,9 +338,6 @@ app.get('/api/course/by-code/:code', async (c) => {
     // 如果是直接命中 courses.code，顺手补齐 alias，避免每次都走回退查询
     if (!aliasRow?.id && directRow?.id) {
       // 防御：老库未迁移时保证表存在
-      await c.env.DB.prepare(
-        'CREATE TABLE IF NOT EXISTS course_aliases (system TEXT NOT NULL, alias TEXT NOT NULL, course_id INTEGER NOT NULL, created_at INTEGER DEFAULT (strftime(\'%s\',\'now\')), PRIMARY KEY (system, alias))'
-      ).run()
       await c.env.DB
         .prepare(
           `INSERT INTO course_aliases (system, alias, course_id)
@@ -295,10 +403,38 @@ app.get('/api/course/by-code/:code', async (c) => {
       .bind(...idList)
       .first<{ avg: number | null }>()
 
+    const semestersRow = await c.env.DB
+      .prepare(
+        `SELECT GROUP_CONCAT(x.calendarName, '||') as semester_names FROM (
+          SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
+          FROM coursedetail cd2
+          JOIN calendar ca ON ca.calendarId = cd2.calendarId
+          WHERE (
+            cd2.courseCode = ?
+            OR cd2.newCourseCode = ?
+            OR EXISTS (
+              SELECT 1 FROM course_aliases a
+              WHERE a.system = 'onesystem'
+                AND a.course_id = ?
+                AND (a.alias = cd2.courseCode OR a.alias = cd2.newCourseCode)
+            )
+          )
+          ORDER BY cd2.calendarId DESC
+        ) x`
+      )
+      .bind((course as any).code, (course as any).code, Number(courseId))
+      .first<{ semester_names: string | null }>()
+
+    const semesters = String(semestersRow?.semester_names || '')
+      .split('||')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
     return c.json({
       ...(course as any),
       review_count: Number(countRow?.cnt || 0),
       review_avg: avgRow?.avg === null || avgRow?.avg === undefined ? 0 : Number(avgRow.avg),
+      semesters,
       reviews: reviewsWithSqid
     })
   } catch (err: any) {

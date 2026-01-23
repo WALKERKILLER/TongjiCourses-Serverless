@@ -25,6 +25,7 @@ interface CourseData {
   teacher_name: string
   review_avg: number
   review_count: number
+  semesters?: string[]
   reviews: Review[]
 }
 
@@ -60,6 +61,18 @@ export default function Course() {
 
           <h2 className="text-2xl font-bold text-slate-800 mb-1">{course.name}</h2>
           <p className="text-slate-500 font-medium mb-6">{course.department}</p>
+          {Array.isArray(course.semesters) && course.semesters.length > 0 && (
+            <div className="mb-6 flex flex-wrap gap-2">
+              {course.semesters.map((s) => (
+                <span
+                  key={s}
+                  className="text-[11px] font-bold px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200"
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-white">

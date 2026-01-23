@@ -26,7 +26,7 @@ export default function Schedule() {
       <div className="flex items-center justify-between gap-3 px-1 mb-3">
         <div>
           <h2 className="text-lg md:text-xl font-extrabold text-slate-800 tracking-tight">排课模拟器</h2>
-          <p className="text-xs md:text-sm text-slate-500">桌面端右侧弹窗查看评价；移动端右侧滑入扇面卡片</p>
+          <p className="text-xs md:text-sm text-slate-500">模拟排课工具，支持同时查看评价</p>
         </div>
         <a
           className="text-xs md:text-sm font-semibold text-cyan-700 hover:text-cyan-800 underline underline-offset-4 whitespace-nowrap"

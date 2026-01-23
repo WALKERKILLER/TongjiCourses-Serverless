@@ -296,9 +296,8 @@ export default {
 
 .review-viewport {
   position: relative;
-  height: calc(100vh - 220px);
-  height: calc(100dvh - 220px);
-  min-height: 360px;
+  height: 100%;
+  min-height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -353,19 +352,19 @@ export default {
 .fan-nav {
   position: absolute;
   top: 50%;
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   transform: translateY(-50%);
   border-radius: 999px;
-  border: 1px solid rgba(226, 232, 240, 1);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  color: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(251, 146, 60, 0.45);
+  background: rgba(255, 247, 237, 0.38);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  color: rgba(249, 115, 22, 0.95);
   font-size: 24px;
   line-height: 1;
   display: grid;
   place-items: center;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
   z-index: 40;
   touch-action: manipulation;
   pointer-events: auto;
@@ -374,10 +373,10 @@ export default {
   opacity: 0.35;
 }
 .fan-nav--left {
-  left: 10px;
+  left: -12px;
 }
 .fan-nav--right {
-  right: 10px;
+  right: -12px;
 }
 
 .fan-indicator {

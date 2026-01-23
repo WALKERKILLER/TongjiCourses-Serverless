@@ -112,48 +112,38 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       .first<{ id: number }>()
     const targetMajorId = majorRow?.id ?? null
 
-    const courseCodesRes = await c.env.DB
+    // 直接按 major + calendarId 拉取 teaching class，避免先查 courseCode 再分块 IN(...) 的多次往返
+    const cdRowsRes = await c.env.DB
       .prepare(
-        `SELECT DISTINCT cd.courseCode as courseCode
+        `SELECT
+           cd.*,
+           f.facultyI18n as facultyI18n,
+           ca.campusI18n as campusI18n,
+           n.courseLabelName as courseLabelName,
+           l.teachingLanguageI18n as teachingLanguageI18n,
+           CASE
+             WHEN ? IS NOT NULL AND EXISTS (
+               SELECT 1 FROM majorandcourse mac2 WHERE mac2.majorId = ? AND mac2.courseId = cd.id
+             ) THEN 1
+             ELSE 0
+           END as isExclusive
          FROM coursedetail cd
          JOIN majorandcourse mac ON mac.courseId = cd.id
          JOIN major m ON m.id = mac.majorId
+         LEFT JOIN faculty f ON f.faculty = cd.faculty
+         LEFT JOIN campus ca ON ca.campus = cd.campus
+         LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
+         LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
          WHERE cd.calendarId = ?
            AND m.code = ?
            AND m.grade <= ?
-         ORDER BY cd.courseCode ASC`
+         ORDER BY cd.courseCode ASC, cd.code ASC`
       )
-      .bind(calendarId, code, grade)
+      .bind(targetMajorId, targetMajorId, calendarId, code, grade)
       .all<any>()
 
-    const courseCodes = (courseCodesRes.results || []).map((r: any) => String(r.courseCode))
-    if (courseCodes.length === 0) return c.json(jsonOk([]))
-
-    // 拉取所有相关 teaching class（coursedetail）
-    const cdRowsAll: any[] = []
-    for (const part of chunk(courseCodes, MAX_SQL_VARS)) {
-      const placeholders = part.map(() => '?').join(',')
-      const cdRowsRes = await c.env.DB
-        .prepare(
-          `SELECT
-             cd.*,
-             f.facultyI18n as facultyI18n,
-             ca.campusI18n as campusI18n,
-             n.courseLabelName as courseLabelName,
-             l.teachingLanguageI18n as teachingLanguageI18n
-           FROM coursedetail cd
-           LEFT JOIN faculty f ON f.faculty = cd.faculty
-           LEFT JOIN campus ca ON ca.campus = cd.campus
-           LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
-           LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
-           WHERE cd.calendarId = ?
-             AND cd.courseCode IN (${placeholders})
-           ORDER BY cd.courseCode ASC, cd.code ASC`
-        )
-        .bind(calendarId, ...part)
-        .all<any>()
-      if (cdRowsRes.results?.length) cdRowsAll.push(...(cdRowsRes.results || []))
-    }
+    const cdRowsAll: any[] = cdRowsRes.results || []
+    if (cdRowsAll.length === 0) return c.json(jsonOk([]))
 
     const teachingClassIds = Array.from(
       new Set(
@@ -183,24 +173,6 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       }
     }
 
-    const exclusiveSet = new Set<number>()
-    if (targetMajorId) {
-      for (const part of chunk(teachingClassIds, MAX_SQL_VARS)) {
-        const placeholders = part.map(() => '?').join(',')
-        const { results } = await c.env.DB
-          .prepare(
-            `SELECT courseId FROM majorandcourse WHERE majorId = ? AND courseId IN (${placeholders})`
-          )
-          .bind(targetMajorId, ...part)
-          .all<any>()
-
-        for (const r of results || []) {
-          const cid = Number((r as any).courseId)
-          if (Number.isFinite(cid)) exclusiveSet.add(cid)
-        }
-      }
-    }
-
     const outMap = new Map<string, any>()
 
     for (const row of cdRowsAll) {
@@ -227,7 +199,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       const teachers = teachersByClass.get(Number(row.id)) || []
       const arrangementInfo = mergeArrangementInfo(teachers)
 
-      const isExclusive = exclusiveSet.has(Number(row.id))
+      const isExclusive = Number((row as any).isExclusive || 0) === 1
 
       outMap.get(courseCode).courses.push({
         code: String(row.code || ''),
@@ -262,15 +234,20 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
   app.post('/api/findOptionalCourseType', async (c) => {
     const body = await c.req.json().catch(() => ({}))
     const calendarId = Number(body?.calendarId)
-    if (!Number.isFinite(calendarId)) return c.json(jsonErr(400, '参数错误: 缺少 calendarId'), 400)
+    if (!Number.isFinite(calendarId)) return c.json(jsonErr(400, 'Missing calendarId'), 400)
 
-    const { results } = await c.env.DB
-      .prepare(
-        "SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature_by_calendar WHERE calendarId = ? AND courseLabelName LIKE '%通识%' ORDER BY courseLabelId DESC"
-      )
-      .bind(calendarId)
-      .all<any>()
-    return c.json(jsonOk(results || []))
+    const sqlByCalendar =
+      "SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature_by_calendar WHERE calendarId = ? AND courseLabelName LIKE '%\u901a\u8bc6%' AND courseLabelName LIKE '%\u9009\u4fee%' ORDER BY courseLabelId DESC"
+    const sqlLegacy =
+      "SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature WHERE calendarId = ? AND courseLabelName LIKE '%\u901a\u8bc6%' AND courseLabelName LIKE '%\u9009\u4fee%' ORDER BY courseLabelId DESC"
+
+    try {
+      const { results } = await c.env.DB.prepare(sqlByCalendar).bind(calendarId).all<any>()
+      return c.json(jsonOk(results || []))
+    } catch (_e) {
+      const { results } = await c.env.DB.prepare(sqlLegacy).bind(calendarId).all<any>()
+      return c.json(jsonOk(results || []))
+    }
   })
 
   app.post('/api/findCourseByNatureId', async (c) => {
@@ -542,6 +519,10 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
       WHERE cd.calendarId = ?
         AND (${orLike})
+        AND (
+          n.courseLabelName LIKE '%通识选修%'
+          OR (n.courseLabelName LIKE '%通识%' AND n.courseLabelName NOT LIKE '%必修%')
+        )
       GROUP BY cd.courseCode, cd.courseName, f.facultyI18n
       ORDER BY cd.courseCode ASC
     `

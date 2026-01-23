@@ -12,6 +12,7 @@ interface CourseItem {
   rating: number
   review_count: number
   teacher_name: string
+  semesters?: string[]
   department?: string
   credit?: number
   is_legacy?: number
@@ -107,6 +108,7 @@ export default function Courses() {
     <div className="space-y-6">
       {/* 筛选面板 */}
       <FilterPanel
+        value={filters}
         departments={departments}
         onFilterChange={handleFilterChange}
       />
@@ -221,6 +223,23 @@ export default function Courses() {
                       {course.name}
                     </h3>
                     <p className="text-slate-500 text-sm">{course.teacher_name || '未知教师'}</p>
+                    {Array.isArray(course.semesters) && course.semesters.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {course.semesters.slice(0, 4).map((s) => (
+                          <span
+                            key={s}
+                            className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                        {course.semesters.length > 4 && (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+                            +{course.semesters.length - 4}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 flex items-center justify-between mt-4">
