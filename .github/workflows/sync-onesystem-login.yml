@@ -84,7 +84,7 @@ jobs:
 
       - name: Install backend deps (wrangler)
         working-directory: backend
-        run: npm ci
+        run: npm install
 
       - name: Setup Python
         uses: actions/setup-python@v5
