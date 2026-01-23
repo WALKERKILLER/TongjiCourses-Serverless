@@ -114,8 +114,10 @@ export function parseMajorString(major: string): { grade: number | null; code: s
   const gradeRaw = name.slice(0, 4)
   const grade = /^[0-9]{4}$/.test(gradeRaw) ? parseInt(gradeRaw, 10) : null
 
-  // Example: "2025(03074 土木工程(国际班))"
-  const m = name.match(/\(([0-9]{3,6})\s/)
+  // Example:
+  // - "2025(03074 土木工程(国际班))"
+  // - "2025(WF00020204 ... )"
+  const m = name.match(/\(([0-9A-Za-z]{3,16})\s/)
   const code = m?.[1] || null
 
   return { grade, code, name }
@@ -137,4 +139,3 @@ export function optCourseQueryListGenerator(day: number, section: number): strin
   }
   return null
 }
-

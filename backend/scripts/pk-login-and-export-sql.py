@@ -42,9 +42,11 @@ def parse_major_string(major: str):
     # Example: "2025(03074 土木工程(国际班))"
     import re
 
-    # Example: "2025(03074 土木工程(国际班))"
+    # Example:
+    # - "2025(03074 土木工程(国际班))"
+    # - "2025(WF00020204 ... )"
     # We want to capture the leading major code inside the first parentheses.
-    m = re.search(r"\(([0-9]{3,6})\s", name)
+    m = re.search(r"\(([0-9A-Za-z]{3,16})\s", name)
     if m:
         code = m.group(1)
 
