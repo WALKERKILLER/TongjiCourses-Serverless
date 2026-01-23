@@ -43,18 +43,7 @@ jobs:
             exit 1
           fi
 
-          payload=$(python3 - <<'PY'
-import json, os
-payload = {
-  "calendarId": int(os.environ["CALENDAR_ID"]),
-  "depth": int(os.environ.get("DEPTH", "1")),
-}
-cookie = os.environ.get("ONESYSTEM_COOKIE", "").strip()
-if cookie:
-  payload["onesystemCookie"] = cookie
-print(json.dumps(payload, ensure_ascii=False))
-PY
-          )
+          payload=$(python3 -c 'import json, os; payload={"calendarId": int(os.environ["CALENDAR_ID"]), "depth": int(os.environ.get("DEPTH", "1"))}; cookie=os.environ.get("ONESYSTEM_COOKIE","").strip(); payload.update({"onesystemCookie": cookie} if cookie else {}); print(json.dumps(payload, ensure_ascii=False))')
 
           curl -sS -X POST "$BACKEND_URL/api/admin/pk/sync" \
             -H "Content-Type: application/json" \
