@@ -373,6 +373,7 @@ app.get('/api/course/by-code/:code', async (c) => {
     await ensureCourseAliasesTable(c.env.DB)
     const code = (c.req.param('code') || '').trim()
     if (!code) return c.json({ error: 'Missing code' }, 400)
+    const teacherName = (c.req.query('teacherName') || '').trim()
 
     // ICU 显示开关
     const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
@@ -380,16 +381,40 @@ app.get('/api/course/by-code/:code', async (c) => {
       .first<{ value: string }>()
     const showIcu = setting?.value === 'true'
 
+    // 若带 teacherName：优先命中“课号/别名 + 教师”，避免同课号不同老师的评价混在一起
+    const preferredRow = teacherName
+      ? await c.env.DB
+          .prepare(
+            `SELECT c.id as id
+             FROM courses c
+             LEFT JOIN teachers t ON c.teacher_id = t.id
+             WHERE (
+               c.code = ?
+               OR EXISTS (
+                 SELECT 1 FROM course_aliases a
+                 WHERE a.system = 'onesystem'
+                   AND a.alias = ?
+                   AND a.course_id = c.id
+               )
+             )
+               AND t.name = ?
+             LIMIT 1`
+          )
+          .bind(code, code, teacherName)
+          .first<{ id: number }>()
+      : null
+
     // 先尝试 alias 映射（onesystem）
-    const aliasRow = await c.env.DB.prepare(
-      `SELECT course_id as id FROM course_aliases WHERE system = 'onesystem' AND alias = ? LIMIT 1`
-    ).bind(code).first<{ id: number }>()
-
-    const directRow = aliasRow?.id
+    const aliasRow = preferredRow?.id
       ? null
-      : await c.env.DB.prepare('SELECT id FROM courses WHERE code = ? LIMIT 1').bind(code).first<{ id: number }>()
+      : await c.env.DB.prepare(`SELECT course_id as id FROM course_aliases WHERE system = 'onesystem' AND alias = ? LIMIT 1`).bind(code).first<{ id: number }>()
 
-    const courseId = aliasRow?.id ?? directRow?.id ?? null
+    const directRow =
+      preferredRow?.id || aliasRow?.id
+        ? null
+        : await c.env.DB.prepare('SELECT id FROM courses WHERE code = ? LIMIT 1').bind(code).first<{ id: number }>()
+
+    const courseId = preferredRow?.id ?? aliasRow?.id ?? directRow?.id ?? null
 
     if (!courseId) return c.json({ error: 'Course not found' }, 404)
 
@@ -419,20 +444,30 @@ app.get('/api/course/by-code/:code', async (c) => {
     }
 
     // 评价匹配策略（跨学期）：
-    // - 同课程 code（含 alias 命中后的 canonical code）
-    // - 同课程名 + 同教师（如果有教师）
+    // - 默认：同课程 code（含 alias 命中后的 canonical code）+ 同课程名同教师
+    // - 若带 teacherName：只按“同课程名 + 同教师”聚合（避免同课号不同老师混入）
     const matchedIds = new Set<number>([Number(courseId)])
 
-    const sameCodeRows = await c.env.DB
-      .prepare('SELECT id FROM courses WHERE code = ?')
-      .bind((course as any).code)
-      .all<{ id: number }>()
-    for (const r of sameCodeRows.results || []) matchedIds.add(Number((r as any).id))
+    if (!teacherName) {
+      const sameCodeRows = await c.env.DB.prepare('SELECT id FROM courses WHERE code = ?').bind((course as any).code).all<{ id: number }>()
+      for (const r of sameCodeRows.results || []) matchedIds.add(Number((r as any).id))
+    }
 
     if ((course as any).teacher_id) {
       const sameNameTeacherRows = await c.env.DB
         .prepare('SELECT id FROM courses WHERE name = ? AND teacher_id = ?')
         .bind((course as any).name, (course as any).teacher_id)
+        .all<{ id: number }>()
+      for (const r of sameNameTeacherRows.results || []) matchedIds.add(Number((r as any).id))
+    } else if (teacherName) {
+      const sameNameTeacherRows = await c.env.DB
+        .prepare(
+          `SELECT c.id as id
+           FROM courses c
+           LEFT JOIN teachers t ON c.teacher_id = t.id
+           WHERE c.name = ? AND t.name = ?`
+        )
+        .bind((course as any).name, teacherName)
         .all<{ id: number }>()
       for (const r of sameNameTeacherRows.results || []) matchedIds.add(Number((r as any).id))
     }

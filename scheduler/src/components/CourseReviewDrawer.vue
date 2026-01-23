@@ -85,9 +85,6 @@
             </a-spin>
           </div>
 
-          <div class="p-4 border-t border-slate-200">
-            <a-button block @click="emitClose">关闭</a-button>
-          </div>
         </div>
       </div>
     </transition>
@@ -162,6 +159,7 @@ export default {
     open: { type: Boolean, required: true },
     courseCode: { type: String, required: true },
     courseName: { type: String, required: true },
+    teacherName: { type: String, default: '' },
   },
   emits: ['close'],
   data() {
@@ -266,7 +264,9 @@ export default {
       this.summary = null
       try {
         const code = encodeURIComponent(this.courseCode)
-        const res = await axios.get(`/api/course/by-code/${code}`)
+        const tn = String(this.teacherName || '').trim()
+        const qs = tn ? `?teacherName=${encodeURIComponent(tn)}` : ''
+        const res = await axios.get(`/api/course/by-code/${code}${qs}`)
         const data = res.data || {}
         this.summary = {
           review_avg: data.review_avg,

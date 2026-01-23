@@ -185,6 +185,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
         outMap.set(courseCode, {
           courseCode,
           courseName: String(row.courseName || ''),
+          faculty: String(row.facultyI18n || ''),
           facultyI18n: String(row.facultyI18n || ''),
           credit: Number(row.credit || 0),
           grade,
@@ -312,6 +313,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
           .filter(Boolean),
         courseCode: String(r.courseCode || ''),
         courseName: String(r.courseName || ''),
+        faculty: String(r.facultyI18n || ''),
         facultyI18n: String(r.facultyI18n || ''),
         credit: Number(r.credit || 0)
       })
@@ -495,8 +497,13 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     const courses = (results || []).map((r: any) => ({
       courseCode: String(r.courseCode || ''),
       courseName: String(r.courseName || ''),
+      faculty: String(r.facultyI18n || ''),
       facultyI18n: String(r.facultyI18n || ''),
       courseNature: String(r.courseNature || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      campus: String(r.campus_list || '')
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
@@ -546,6 +553,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     const data = (results || []).map((r: any) => ({
       courseCode: String(r.courseCode || ''),
       courseName: String(r.courseName || ''),
+      faculty: String(r.faculty || ''),
       facultyI18n: String(r.faculty || ''),
       credit: Number(r.credit || 0),
       courseNature: String(r.courseNature || '')

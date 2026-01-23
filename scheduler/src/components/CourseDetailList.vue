@@ -77,6 +77,7 @@
             :open="reviewDrawerOpen"
             :courseCode="$store.state.clickedCourseInfo.courseCode"
             :courseName="$store.state.clickedCourseInfo.courseName"
+            :teacherName="reviewTeacherName"
             @close="reviewDrawerOpen = false"
         />
     </a-layout-content>
@@ -92,6 +93,7 @@ import CourseReviewDrawer from './CourseReviewDrawer.vue';
         data() {
             return {
                 reviewDrawerOpen: false,
+                reviewTeacherName: '',
                 isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
                 columns: [
                     {
@@ -155,9 +157,17 @@ import CourseReviewDrawer from './CourseReviewDrawer.vue';
         },
         methods: {
             openReviewDrawer() {
+                // 默认取当前详情列表第一个班号的教师，避免混入同课号不同老师的评价
+                if (!this.reviewTeacherName) {
+                    const first = (this.localDetailList || [])[0] as any
+                    const t0 = first?.teachers?.[0]?.teacherName
+                    if (t0) this.reviewTeacherName = String(t0)
+                }
                 this.reviewDrawerOpen = true;
             },
             selectDetail(courseDetaillet: courseDetaillet) {
+                const t0 = (courseDetaillet as any)?.teachers?.[0]?.teacherName
+                this.reviewTeacherName = t0 ? String(t0) : ''
                 this.$store.commit('updateTimeTable', courseDetaillet);
             },
             getCampusClass(campus: string) {
@@ -176,6 +186,8 @@ import CourseReviewDrawer from './CourseReviewDrawer.vue';
                 return {
                     onClick: () => {
                         // console.log("记录", courseDetaillet);
+                        const t0 = (courseDetaillet as any)?.teachers?.[0]?.teacherName
+                        this.reviewTeacherName = t0 ? String(t0) : ''
                         this.$store.commit('updateTimeTable', courseDetaillet);
                     }
                 }

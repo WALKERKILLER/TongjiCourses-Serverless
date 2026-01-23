@@ -20,13 +20,13 @@
             <div class="w-90">
                 <p>校区</p>
                 <a-select v-model:value="searchBody.campus" placeholder="请选择" class="w-full" show-search allow-clear>
-                    <a-select-option v-for="campus in rawList.campus" :key="campus" :value="campus.campusName">{{ campus.campusName }}</a-select-option>
+                    <a-select-option v-for="campus in rawList.campus" :key="campus" :value="campus.campusId">{{ campus.campusName }}</a-select-option>
                 </a-select>
             </div>
             <div class="w-90">
                 <p>开课学院</p>
                 <a-select v-model:value="searchBody.faculty" placeholder="请选择" class="w-full" show-search allow-clear>
-                    <a-select-option v-for="faculty in rawList.faculty" :key="faculty" :value="faculty.facultyName">{{ faculty.facultyName }}</a-select-option>
+                    <a-select-option v-for="faculty in rawList.faculty" :key="faculty" :value="faculty.facultyId">{{ faculty.facultyName }}</a-select-option>
                 </a-select>
             </div>
         </div>
