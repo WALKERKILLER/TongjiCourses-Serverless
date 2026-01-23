@@ -1,0 +1,4 @@
+CAPTCHA_SITEVERIFY_URL=https://your-captcha-worker.your-subdomain.workers.dev
+ADMIN_SECRET=please-set-a-long-random-string
+ONESYSTEM_COOKIE=JWTUser=...; JSESSIONID=...; sessionid=...; ...
+

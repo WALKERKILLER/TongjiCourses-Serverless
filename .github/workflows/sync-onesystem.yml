@@ -1,0 +1,63 @@
+﻿name: Sync Onesystem (Cookie) To D1
+
+on:
+  workflow_dispatch:
+    inputs:
+      calendarId:
+        description: "一系统学期ID (例如 121)"
+        required: true
+        type: string
+      depth:
+        description: "同步深度 (从 calendarId 往前同步多少学期，默认 1)"
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          echo "calendarId=${{ inputs.calendarId }}"
+          echo "depth=${{ inputs.depth }}"
+
+      - name: Trigger backend sync
+        env:
+          BACKEND_URL: ${{ secrets.VITE_API_URL }}
+          ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
+          ONESYSTEM_COOKIE: ${{ secrets.ONESYSTEM_COOKIE }}
+          CALENDAR_ID: ${{ inputs.calendarId }}
+          DEPTH: ${{ inputs.depth }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BACKEND_URL" ]; then
+            echo "Missing secrets.VITE_API_URL (backend base url)" >&2
+            exit 1
+          fi
+          if [ -z "$ADMIN_SECRET" ]; then
+            echo "Missing secrets.JCOURSE_ADMIN_SECRET (x-admin-secret)" >&2
+            exit 1
+          fi
+
+          payload=$(python3 - <<'PY'
+import json, os
+payload = {
+  "calendarId": int(os.environ["CALENDAR_ID"]),
+  "depth": int(os.environ.get("DEPTH", "1")),
+}
+cookie = os.environ.get("ONESYSTEM_COOKIE", "").strip()
+if cookie:
+  payload["onesystemCookie"] = cookie
+print(json.dumps(payload, ensure_ascii=False))
+PY
+          )
+
+          curl -sS -X POST "$BACKEND_URL/api/admin/pk/sync" \
+            -H "Content-Type: application/json" \
+            -H "x-admin-secret: $ADMIN_SECRET" \
+            --data "$payload" \
+            | tee sync-result.json

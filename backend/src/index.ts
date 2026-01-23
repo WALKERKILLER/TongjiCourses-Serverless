@@ -1,11 +1,14 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { encodeReviewId, decodeReviewId } from './sqids'
+import { registerPkRoutes } from './pk/routes'
+import { syncOnesystemToPkTables } from './pk/sync'
 
 type Bindings = {
   DB: D1Database
   CAPTCHA_SITEVERIFY_URL: string
   ADMIN_SECRET: string
+  ONESYSTEM_COOKIE?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -27,6 +30,9 @@ app.onError((err, c) => {
   console.error('Error:', err)
   return c.json({ error: err.message || 'Internal Server Error' }, 500)
 })
+
+// pk(排课模拟器) 兼容接口：给嵌入的 Vue 子应用使用
+registerPkRoutes(app)
 
 // TongjiCaptcha 验证函数
 async function verifyTongjiCaptcha(token: string, siteverifyUrl: string) {
@@ -193,6 +199,55 @@ app.get('/api/course/:id', async (c) => {
   }
 })
 
+// 给排课模拟器侧边弹窗使用：按课号/新课号查找课程评价
+app.get('/api/course/by-code/:code', async (c) => {
+  try {
+    const code = (c.req.param('code') || '').trim()
+    if (!code) return c.json({ error: 'Missing code' }, 400)
+
+    // ICU 显示开关
+    const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
+      .bind('show_legacy_reviews')
+      .first<{ value: string }>()
+    const showIcu = setting?.value === 'true'
+
+    // 先尝试 alias 映射（onesystem）
+    const aliasRow = await c.env.DB.prepare(
+      `SELECT course_id as id FROM course_aliases WHERE system = 'onesystem' AND alias = ? LIMIT 1`
+    ).bind(code).first<{ id: number }>()
+
+    const courseId =
+      aliasRow?.id ??
+      (await c.env.DB.prepare('SELECT id FROM courses WHERE code = ? LIMIT 1').bind(code).first<{ id: number }>())?.id ??
+      null
+
+    if (!courseId) return c.json({ error: 'Course not found' }, 404)
+
+    const course = await c.env.DB.prepare(
+      `SELECT c.*, t.name as teacher_name FROM courses c
+       LEFT JOIN teachers t ON c.teacher_id = t.id
+       WHERE c.id = ?`
+    ).bind(courseId).first()
+
+    if (!course) return c.json({ error: 'Course not found' }, 404)
+
+    if (!showIcu && (course as any).is_icu === 1) {
+      return c.json({ error: 'Course not found' }, 404)
+    }
+
+    let reviewQuery = `SELECT * FROM reviews WHERE course_id = ? AND is_hidden = 0`
+    if (!showIcu) reviewQuery += ` AND is_icu = 0`
+    reviewQuery += ` ORDER BY created_at DESC LIMIT 30`
+
+    const reviews = await c.env.DB.prepare(reviewQuery).bind(courseId).all()
+    const reviewsWithSqid = addSqidToReviews(reviews.results || [])
+
+    return c.json({ ...course, reviews: reviewsWithSqid })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 app.post('/api/review', async (c) => {
   const body = await c.req.json()
   const { course_id, rating, comment, semester, turnstile_token, reviewer_name, reviewer_avatar } = body
@@ -226,6 +281,35 @@ admin.use('/*', async (c, next) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
   await next()
+})
+
+// 手动同步一系统排课数据 -> D1（pk 数据域）
+// 由 GitHub Action / 管理端触发：POST /api/admin/pk/sync { calendarId, depth? }
+admin.post('/pk/sync', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({} as any))
+    const calendarId = Number(body?.calendarId)
+    const depth = body?.depth !== undefined ? Number(body.depth) : 1
+
+    if (!Number.isFinite(calendarId)) return c.json({ error: 'calendarId 无效' }, 400)
+
+    // Allow overriding cookie for local tooling (still protected by x-admin-secret).
+    const sessionCookie = String(body?.onesystemCookie || body?.sessionCookie || c.env.ONESYSTEM_COOKIE || '').trim()
+    if (!sessionCookie) {
+      return c.json({ error: 'ONESYSTEM_COOKIE 未配置（wrangler secret put ONESYSTEM_COOKIE）' }, 500)
+    }
+
+    const result = await syncOnesystemToPkTables({
+      db: c.env.DB,
+      sessionCookie,
+      calendarId,
+      depth
+    })
+
+    return c.json({ success: true, ...result })
+  } catch (err: any) {
+    return c.json({ error: err.message || 'Sync failed' }, 500)
+  }
 })
 
 admin.get('/reviews', async (c) => {

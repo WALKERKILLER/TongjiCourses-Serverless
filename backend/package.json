@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:init": "wrangler d1 execute jcourse-db --file=./schema.sql"
+    "db:init": "wrangler d1 execute jcourse-db --file=./schema.sql",
+    "db:init:local": "wrangler d1 execute jcourse-db --local --file=./schema.sql",
+    "db:seed:local": "wrangler d1 execute jcourse-db --local --file=./sample_data.sql",
+    "db:seed:pk:local": "wrangler d1 execute jcourse-db --local --file=./sample_pk_data.sql",
+    "pk:sync:local": "node ./scripts/pk-sync-local.mjs",
+    "pk:sync:login": "python ./scripts/pk-login-and-sync.py"
   },
   "dependencies": {
     "hono": "^4.0.0",

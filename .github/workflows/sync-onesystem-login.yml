@@ -1,0 +1,73 @@
+﻿name: Sync Onesystem (Login) To D1
+
+on:
+  workflow_dispatch:
+    inputs:
+      calendarId:
+        description: "一系统学期ID (例如 121)"
+        required: true
+        type: string
+      depth:
+        description: "同步深度 (从 calendarId 往前同步多少学期，默认 1)"
+        required: false
+        default: "1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      BACKEND_URL: ${{ secrets.VITE_API_URL }}
+      ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
+      ONESYSTEM_SNO: ${{ secrets.ONESYSTEM_SNO }}
+      ONESYSTEM_PASSWORD: ${{ secrets.ONESYSTEM_PASSWORD }}
+      ONESYSTEM_IMAP_SERVER: ${{ secrets.ONESYSTEM_IMAP_SERVER }}
+      ONESYSTEM_IMAP_PORT: ${{ secrets.ONESYSTEM_IMAP_PORT }}
+      ONESYSTEM_IMAP_EMAIL: ${{ secrets.ONESYSTEM_IMAP_EMAIL }}
+      ONESYSTEM_IMAP_GRANTCODE: ${{ secrets.ONESYSTEM_IMAP_GRANTCODE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          if [ -z "$BACKEND_URL" ]; then echo "Missing secrets.VITE_API_URL (backend base url)" >&2; exit 1; fi
+          if [ -z "$ADMIN_SECRET" ]; then echo "Missing secrets.JCOURSE_ADMIN_SECRET (x-admin-secret)" >&2; exit 1; fi
+          if [ -z "$ONESYSTEM_SNO" ]; then echo "Missing secrets.ONESYSTEM_SNO" >&2; exit 1; fi
+          if [ -z "$ONESYSTEM_PASSWORD" ]; then echo "Missing secrets.ONESYSTEM_PASSWORD" >&2; exit 1; fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install requests pycryptodome beautifulsoup4
+
+      - name: Write onesystem config (runtime)
+        run: |
+          set -euo pipefail
+          mkdir -p backend
+          printf "%s\n" "[Account]" > backend/config.onesystem.ini
+          printf "sno=%s\n" "$ONESYSTEM_SNO" >> backend/config.onesystem.ini
+          printf "passwd=%s\n" "$ONESYSTEM_PASSWORD" >> backend/config.onesystem.ini
+          # Optional IMAP section (only needed if your account triggers extra verification / email code)
+          if [ -n "${ONESYSTEM_IMAP_SERVER:-}" ] && [ -n "${ONESYSTEM_IMAP_PORT:-}" ] && [ -n "${ONESYSTEM_IMAP_EMAIL:-}" ] && [ -n "${ONESYSTEM_IMAP_GRANTCODE:-}" ]; then
+            printf "\n%s\n" "[IMAP]" >> backend/config.onesystem.ini
+            printf "server_domain=%s\n" "$ONESYSTEM_IMAP_SERVER" >> backend/config.onesystem.ini
+            printf "server_port=%s\n" "$ONESYSTEM_IMAP_PORT" >> backend/config.onesystem.ini
+            printf "qq_emailaddr=%s\n" "$ONESYSTEM_IMAP_EMAIL" >> backend/config.onesystem.ini
+            printf "qq_grantcode=%s\n" "$ONESYSTEM_IMAP_GRANTCODE" >> backend/config.onesystem.ini
+          fi
+
+      - name: Login & sync
+        run: |
+          set -euo pipefail
+          cd backend
+          python ./scripts/pk-login-and-sync.py --calendarId "${{ inputs.calendarId }}" --depth "${{ inputs.depth }}" --base-url "$BACKEND_URL" --config "./config.onesystem.ini"
