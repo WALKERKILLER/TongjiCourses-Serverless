@@ -108,8 +108,15 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
 
       {/* 弹窗 Modal */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-[360px] w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Soft full-page blur backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/20 backdrop-blur-xl backdrop-saturate-150"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/20 via-white/5 to-black/10" />
+
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-[360px] w-full mx-4 overflow-hidden">
             {data ? (
               <>
                 {/* 题目头部 */}
@@ -197,8 +204,6 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
               <div className="p-10 text-center text-slate-500">加载中...</div>
             )}
           </div>
-          {/* 点击背景关闭 */}
-          <div className="absolute inset-0 -z-10" onClick={() => setIsOpen(false)} />
         </div>
       )}
     </>
