@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // TongjiCaptcha 服务地址（使用国内可访问的域名）
 const CAPTCHA_API_BASE = import.meta.env.VITE_CAPTCHA_URL || 'https://captcha.07211024.xyz'
@@ -82,6 +83,15 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
     else setSelected(s => [...s, idx])
   }
 
+  useEffect(() => {
+    if (!isOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [isOpen])
+
   return (
     <>
       {/* 触发器按钮 */}
@@ -107,7 +117,7 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
       </div>
 
       {/* 弹窗 Modal */}
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           {/* Soft full-page blur backdrop */}
           <div
@@ -205,7 +215,7 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
             )}
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   )
 }
