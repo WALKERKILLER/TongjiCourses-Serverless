@@ -211,11 +211,14 @@ def login():
 
     # 打印结果
     if response.status_code == 200:
-        print("登录成功！")
-        # print("当前链接", response.url) # 输出 URL
-        print(session.cookies) # 输出 cookies
-        # print(session.headers) # 输出 headers
-        return session
+            print("登录成功！")
+            # 不要在日志里输出完整 cookies（包含敏感 session），只输出 cookie 名称用于调试
+            try:
+                names = list(session.cookies.get_dict().keys())
+            except Exception:
+                names = []
+            print("Cookies captured:", ",".join(names) if names else "(none)")
+            return session
     else:
         print("登录失败！")
         return None
