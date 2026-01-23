@@ -44,17 +44,18 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    repo_root = pathlib.Path(__file__).resolve().parents[3]
-    pk_crawler_dir = repo_root / "pk" / "crawler"
+    repo_root = pathlib.Path(__file__).resolve().parents[2]  # .../main
+    pk_crawler_dir = pathlib.Path(__file__).resolve().parent / "pk_crawler"
     if not pk_crawler_dir.exists():
-        print(f"Cannot find pk crawler at: {pk_crawler_dir}")
+        print(f"Cannot find pk crawler runtime at: {pk_crawler_dir}")
+        print("Expected folder: backend/scripts/pk_crawler/utils (vendored from pk project)")
         return 1
 
     config_path = pathlib.Path(args.config).resolve()
     if not config_path.exists():
         print("Missing config file for login.")
         print(f"Expected: {config_path}")
-        print("Create it based on: main/backend/config.onesystem.example.ini (DO NOT COMMIT secrets)")
+        print("Create it based on: backend/config.onesystem.example.ini (DO NOT COMMIT secrets)")
         return 1
 
     # pk crawler utilities read config.ini from current working directory
@@ -91,10 +92,10 @@ def main() -> int:
         print("Login succeeded but no cookies were captured.")
         return 1
 
-    dev_vars = read_dev_vars((repo_root / "main" / "backend" / ".dev.vars"))
+    dev_vars = read_dev_vars((repo_root / "backend" / ".dev.vars"))
     admin_secret = dev_vars.get("ADMIN_SECRET", "").strip() or os.environ.get("ADMIN_SECRET", "").strip()
     if not admin_secret:
-        print("Missing ADMIN_SECRET. Set it in main/backend/.dev.vars or environment.")
+        print("Missing ADMIN_SECRET. Set it in backend/.dev.vars or environment.")
         return 1
 
     url = args.base_url.rstrip("/") + "/api/admin/pk/sync"
