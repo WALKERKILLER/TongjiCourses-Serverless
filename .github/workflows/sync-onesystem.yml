@@ -12,6 +12,9 @@ on:
         required: false
         default: "1"
         type: string
+  # 便于在 dev 分支上“测试到可用”为止：通过 push 触发（需要提交信息包含 [pk-sync]）
+  push:
+    branches: ["dev"]
 
 permissions:
   contents: read
@@ -19,19 +22,47 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[pk-sync]'))
     steps:
+      - name: Resolve calendarId/depth
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "calendarId=${{ inputs.calendarId }}" >> "$GITHUB_OUTPUT"
+            echo "depth=${{ inputs.depth }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          msg="${{ github.event.head_commit.message }}"
+          calendarId="$(echo "$msg" | sed -nE 's/.*calendarId=([0-9]+).*/\1/p' | head -n1)"
+          depth="$(echo "$msg" | sed -nE 's/.*depth=([0-9]+).*/\1/p' | head -n1)"
+
+          if [ -z "$calendarId" ]; then
+            echo "Missing calendarId in commit message. Example: [pk-sync] calendarId=121 depth=1" >&2
+            exit 1
+          fi
+
+          if [ -z "$depth" ]; then depth="1"; fi
+          echo "calendarId=$calendarId" >> "$GITHUB_OUTPUT"
+          echo "depth=$depth" >> "$GITHUB_OUTPUT"
+
       - name: Validate inputs
         run: |
-          echo "calendarId=${{ inputs.calendarId }}"
-          echo "depth=${{ inputs.depth }}"
+          echo "calendarId=${{ steps.resolve.outputs.calendarId }}"
+          echo "depth=${{ steps.resolve.outputs.depth }}"
 
       - name: Trigger backend sync
         env:
           BACKEND_URL: ${{ secrets.VITE_API_URL }}
           ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
           ONESYSTEM_COOKIE: ${{ secrets.ONESYSTEM_COOKIE }}
-          CALENDAR_ID: ${{ inputs.calendarId }}
-          DEPTH: ${{ inputs.depth }}
+          CALENDAR_ID: ${{ steps.resolve.outputs.calendarId }}
+          DEPTH: ${{ steps.resolve.outputs.depth }}
         run: |
           set -euo pipefail
           if [ -z "$BACKEND_URL" ]; then
@@ -50,3 +81,5 @@ jobs:
             -H "x-admin-secret: $ADMIN_SECRET" \
             --data "$payload" \
             | tee sync-result.json
+
+          python3 -c 'import json,sys; data=json.load(open("sync-result.json","r",encoding="utf-8")); ok=bool(data.get("success")); print("success=",ok,"calendarIds=",data.get("calendarIds"),"teachingClassInserted=",data.get("teachingClassInserted")); sys.exit(0 if ok else 1)'
