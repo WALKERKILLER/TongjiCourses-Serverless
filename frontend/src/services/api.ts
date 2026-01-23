@@ -13,21 +13,35 @@ async function fetchWithTimeout(url: string, options?: RequestInit, timeout = 15
   }
 }
 
+export type CourseAdvancedFilters = {
+  departments?: string[]
+  onlyWithReviews?: boolean
+  courseName?: string
+  courseCode?: string
+  teacherName?: string
+  teacherCode?: string
+  campus?: string
+  faculty?: string
+}
+
 export async function fetchCourses(
   keyword?: string,
   legacy?: boolean,
   page = 1,
   limit = 20,
-  departments?: string[],
-  onlyWithReviews?: boolean
+  filters?: CourseAdvancedFilters
 ) {
   let url = `${API_BASE}/api/courses?page=${page}&limit=${limit}&`
   if (keyword) url += `q=${encodeURIComponent(keyword)}&`
   if (legacy) url += `legacy=true&`
-  if (departments && departments.length > 0) {
-    url += `departments=${encodeURIComponent(departments.join(','))}&`
-  }
-  if (onlyWithReviews) url += `onlyWithReviews=true&`
+  if (filters?.departments && filters.departments.length > 0) url += `departments=${encodeURIComponent(filters.departments.join(','))}&`
+  if (filters?.onlyWithReviews) url += `onlyWithReviews=true&`
+  if (filters?.courseName) url += `courseName=${encodeURIComponent(filters.courseName)}&`
+  if (filters?.courseCode) url += `courseCode=${encodeURIComponent(filters.courseCode)}&`
+  if (filters?.teacherName) url += `teacherName=${encodeURIComponent(filters.teacherName)}&`
+  if (filters?.teacherCode) url += `teacherCode=${encodeURIComponent(filters.teacherCode)}&`
+  if (filters?.campus) url += `campus=${encodeURIComponent(filters.campus)}&`
+  if (filters?.faculty) url += `faculty=${encodeURIComponent(filters.faculty)}&`
   const res = await fetchWithTimeout(url, undefined, 15000)
   if (!res.ok) throw new Error('Failed to fetch courses')
   return res.json()

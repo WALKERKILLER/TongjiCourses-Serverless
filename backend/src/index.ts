@@ -110,6 +110,12 @@ app.get('/api/courses', async (c) => {
     const legacy = c.req.query('legacy')
     const departments = c.req.query('departments') // 逗号分隔的开课单位列表
     const onlyWithReviews = c.req.query('onlyWithReviews') === 'true'
+    const courseName = (c.req.query('courseName') || '').trim()
+    const courseCode = (c.req.query('courseCode') || '').trim()
+    const teacherName = (c.req.query('teacherName') || '').trim()
+    const teacherCode = (c.req.query('teacherCode') || '').trim()
+    const campus = (c.req.query('campus') || '').trim()
+    const faculty = (c.req.query('faculty') || '').trim()
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = (page - 1) * limit
@@ -119,7 +125,7 @@ app.get('/api/courses', async (c) => {
     const showIcu = setting?.value === 'true'
 
     let baseWhere = ' WHERE 1=1'
-    let params: string[] = []
+    const params: any[] = []
 
     // 当关闭乌龙茶显示时，过滤掉 is_icu=1 的课程
     if (!showIcu) {
@@ -135,7 +141,59 @@ app.get('/api/courses', async (c) => {
     if (keyword) {
       baseWhere += ' AND (c.search_keywords LIKE ? OR c.code LIKE ? OR c.name LIKE ? OR t.name LIKE ?)'
       const likeKey = `%${keyword}%`
-      params = [likeKey, likeKey, likeKey, likeKey]
+      params.push(likeKey, likeKey, likeKey, likeKey)
+    }
+
+    // 课程代码（支持别名）
+    if (courseCode) {
+      baseWhere +=
+        " AND (c.code LIKE ? OR EXISTS (SELECT 1 FROM course_aliases a WHERE a.system = 'onesystem' AND a.course_id = c.id AND a.alias LIKE ?))"
+      const likeCode = `%${courseCode}%`
+      params.push(likeCode, likeCode)
+    }
+
+    // 高级检索：基于 onesystem/pk 的 coursedetail + teacher 表做过滤（用于按课程名/教师/校区/学院精确筛选）
+    const needPkFilter = Boolean(courseName || teacherName || teacherCode || campus || faculty)
+    if (needPkFilter) {
+      const pkWhere: string[] = []
+      const pkParams: any[] = []
+
+      pkWhere.push(`
+        (
+          cd.courseCode = c.code
+          OR cd.newCourseCode = c.code
+          OR EXISTS (
+            SELECT 1 FROM course_aliases a
+            WHERE a.system = 'onesystem'
+              AND a.course_id = c.id
+              AND (a.alias = cd.courseCode OR a.alias = cd.newCourseCode)
+          )
+        )
+      `)
+
+      if (courseName) {
+        pkWhere.push('cd.courseName LIKE ?')
+        pkParams.push(`%${courseName}%`)
+      }
+      if (campus) {
+        pkWhere.push('cd.campus = ?')
+        pkParams.push(campus)
+      }
+      if (faculty) {
+        pkWhere.push('cd.faculty = ?')
+        pkParams.push(faculty)
+      }
+      if (teacherName) {
+        pkWhere.push('EXISTS (SELECT 1 FROM teacher tt WHERE tt.teachingClassId = cd.id AND tt.teacherName LIKE ?)')
+        pkParams.push(`%${teacherName}%`)
+      }
+      if (teacherCode) {
+        pkWhere.push('EXISTS (SELECT 1 FROM teacher tt WHERE tt.teachingClassId = cd.id AND tt.teacherCode LIKE ?)')
+        pkParams.push(`%${teacherCode}%`)
+      }
+
+      baseWhere += ` AND EXISTS (SELECT 1 FROM coursedetail cd WHERE ${pkWhere.join(' AND ')})`
+      params.push(...pkParams)
     }
 
     // 开课单位筛选

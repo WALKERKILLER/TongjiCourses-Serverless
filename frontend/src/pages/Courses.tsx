@@ -32,7 +32,13 @@ export default function Courses() {
   const [departments, setDepartments] = useState<string[]>([])
   const [filters, setFilters] = useState<FilterState>({
     selectedDepartments: [],
-    onlyWithReviews: false
+    onlyWithReviews: false,
+    courseName: '',
+    courseCode: '',
+    teacherCode: '',
+    teacherName: '',
+    campus: '',
+    faculty: ''
   })
 
   const search = async (legacy?: boolean, p = 1) => {
@@ -40,14 +46,16 @@ export default function Courses() {
     setError('')
     try {
       const useL = legacy !== undefined ? legacy : showLegacy
-      const data = await fetchCourses(
-        keyword,
-        useL,
-        p,
-        20,
-        filters.selectedDepartments,
-        filters.onlyWithReviews
-      )
+      const data = await fetchCourses(keyword, useL, p, 20, {
+        departments: filters.selectedDepartments,
+        onlyWithReviews: filters.onlyWithReviews,
+        courseName: filters.courseName,
+        courseCode: filters.courseCode,
+        teacherCode: filters.teacherCode,
+        teacherName: filters.teacherName,
+        campus: filters.campus,
+        faculty: filters.faculty
+      })
       setCourses(Array.isArray(data.data) ? data.data : [])
       setTotalPages(data.totalPages || 1)
       setTotal(data.total || 0)
@@ -100,7 +108,16 @@ export default function Courses() {
   const toggleLegacy = () => {
     const newValue = !showLegacy
     setShowLegacy(newValue)
-    setFilters({ selectedDepartments: [], onlyWithReviews: false }) // 重置筛选
+    setFilters({
+      selectedDepartments: [],
+      onlyWithReviews: false,
+      courseName: '',
+      courseCode: '',
+      teacherCode: '',
+      teacherName: '',
+      campus: '',
+      faculty: ''
+    }) // 重置筛选
     search(newValue, 1)
   }
 

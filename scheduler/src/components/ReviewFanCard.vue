@@ -18,15 +18,15 @@
       </div>
 
       <div class="mt-3 flex-1 overflow-y-auto pr-1">
-        <div class="text-[13px] leading-snug text-slate-700 whitespace-pre-wrap break-words">
-          {{ comment }}
-        </div>
+        <div class="review-markdown text-[13px] leading-snug text-slate-700 break-words" v-html="commentHtml"></div>
       </div>
     </div>
   </div>
 </template>
 
 <script lang="ts">
+import { renderMarkdown } from '@/utils/markdown'
+
 export default {
   name: 'ReviewFanCard',
   props: {
@@ -49,7 +49,42 @@ export default {
       // @ts-ignore
       return (this.review?.comment as string) || ''
     },
+    commentHtml(): string {
+      return renderMarkdown(this.comment || '')
+    },
   }
 }
 </script>
 
+<style scoped>
+.review-markdown :deep(p) {
+  margin: 0 0 0.65rem 0;
+}
+.review-markdown :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.review-markdown :deep(ul),
+.review-markdown :deep(ol) {
+  padding-left: 1.1rem;
+  margin: 0 0 0.65rem 0;
+}
+.review-markdown :deep(li) {
+  margin: 0.15rem 0;
+}
+.review-markdown :deep(pre) {
+  margin: 0 0 0.65rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(15, 23, 42, 0.06);
+  overflow: auto;
+}
+.review-markdown :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.92em;
+}
+.review-markdown :deep(a) {
+  color: rgb(14 116 144);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+</style>

@@ -4,6 +4,20 @@
             提示：长按课程块查看详细信息
         </div>
         <div class="overflow-x-hidden max-w-full rounded-2xl border border-slate-200 bg-white/70 shadow-sm">
+        <div v-if="creditSummary.show" class="px-3 py-2 border-b border-slate-200 bg-white/70">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] md:text-xs">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="font-extrabold text-slate-700">学分</span>
+                    <span class="text-slate-600">应修专业 {{ creditSummary.targetMajor.toFixed(1) }}</span>
+                    <span class="text-slate-600">可选专选 {{ creditSummary.targetMajorElective.toFixed(1) }}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-slate-600">已选专业 {{ creditSummary.selectedMajor.toFixed(1) }}</span>
+                    <span class="text-slate-600">已选专选 {{ creditSummary.selectedMajorElective.toFixed(1) }}</span>
+                    <span class="text-slate-600">已选通识 {{ creditSummary.selectedOptional.toFixed(1) }}</span>
+                </div>
+            </div>
+        </div>
         <table class="w-full min-w-0 border-collapse table-fixed">
             <thead>
                 <tr class="bg-slate-100/80">
@@ -339,6 +353,86 @@ export default {
                 name: parsed.name || c?.courseName || '课程',
                 code: parsed.code || c?.code || '',
                 arrangement: parsed.arrangement || ''
+            }
+        },
+        creditSummary() {
+            const empty = {
+                show: false,
+                targetMajor: 0,
+                targetMajorElective: 0,
+                selectedMajor: 0,
+                selectedMajorElective: 0,
+                selectedOptional: 0,
+            }
+
+            if (!this.$store.getters.isMajorSelected) return empty
+
+            const compulsory: any[] = this.$store.state.commonLists?.compulsoryCourses || []
+            const optionalGroups: any[] = this.$store.state.commonLists?.optionalCourses || []
+            const staged: any[] = this.$store.state.commonLists?.stagedCourses || []
+            const selected: string[] = this.$store.state.commonLists?.selectedCourses || []
+
+            const classifyMajor = (natures: any): 'major' | 'elective' | 'other' => {
+                const list = Array.isArray(natures) ? natures.map((x) => String(x || '')) : [String(natures || '')]
+                const text = list.join(' ')
+                if (text.includes('专业选修') || text.includes('专选') || text.includes('专业方向') || text.includes('专业任选')) return 'elective'
+                if (text.includes('专业')) return 'major'
+                return 'other'
+            }
+
+            const compulsoryCat = new Map<string, 'major' | 'elective' | 'other'>()
+            let targetMajor = 0
+            let targetMajorElective = 0
+            for (const c of compulsory) {
+                const cc = String(c?.courseCode || '')
+                if (!cc) continue
+                const credit = Number(c?.credit || 0)
+                const cat = classifyMajor(c?.courseNature)
+                compulsoryCat.set(cc, cat)
+                if (cat === 'elective') targetMajorElective += credit
+                else if (cat === 'major') targetMajor += credit
+            }
+
+            const optionalCodes = new Set<string>()
+            for (const g of optionalGroups) {
+                for (const c of (g?.courses || [])) {
+                    const cc = String(c?.courseCode || '')
+                    if (cc) optionalCodes.add(cc)
+                }
+            }
+
+            const selectedBases = new Set<string>()
+            for (const code of selected) {
+                const s = String(code || '')
+                if (!s) continue
+                selectedBases.add(s.length > 2 ? s.slice(0, -2) : s)
+            }
+
+            let selectedMajor = 0
+            let selectedMajorElective = 0
+            let selectedOptional = 0
+            for (const c of staged) {
+                const cc = String(c?.courseCode || '')
+                if (!cc || !selectedBases.has(cc)) continue
+                const credit = Number(c?.credit || 0)
+
+                if (optionalCodes.has(cc)) {
+                    selectedOptional += credit
+                    continue
+                }
+
+                const cat = compulsoryCat.get(cc) || 'other'
+                if (cat === 'elective') selectedMajorElective += credit
+                else if (cat === 'major') selectedMajor += credit
+            }
+
+            return {
+                show: true,
+                targetMajor,
+                targetMajorElective,
+                selectedMajor,
+                selectedMajorElective,
+                selectedOptional,
             }
         }
     },

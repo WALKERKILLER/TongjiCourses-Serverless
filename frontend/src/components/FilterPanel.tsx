@@ -3,6 +3,12 @@ import { useEffect, useMemo, useState } from 'react'
 export interface FilterState {
   selectedDepartments: string[]
   onlyWithReviews: boolean
+  courseName: string
+  courseCode: string
+  teacherCode: string
+  teacherName: string
+  campus: string
+  faculty: string
 }
 
 interface FilterPanelProps {
@@ -16,15 +22,58 @@ function uniq(arr: string[]) {
 }
 
 export default function FilterPanel({ value, onFilterChange, departments }: FilterPanelProps) {
+  const API_BASE = import.meta.env.VITE_API_URL || ''
   const [isOpen, setIsOpen] = useState(false)
   const [draft, setDraft] = useState<FilterState>(value)
   const [searchTerm, setSearchTerm] = useState('')
+  const [campusOptions, setCampusOptions] = useState<Array<{ campusId: string; campusName: string }>>([])
+  const [facultyOptions, setFacultyOptions] = useState<Array<{ facultyId: string; facultyName: string }>>([])
 
   useEffect(() => {
     setDraft(value)
-  }, [value.onlyWithReviews, value.selectedDepartments.join('|')])
+  }, [value])
 
-  const activeCount = (value.onlyWithReviews ? 1 : 0) + value.selectedDepartments.length
+  const activeCount =
+    (value.onlyWithReviews ? 1 : 0) +
+    value.selectedDepartments.length +
+    (value.courseName ? 1 : 0) +
+    (value.courseCode ? 1 : 0) +
+    (value.teacherCode ? 1 : 0) +
+    (value.teacherName ? 1 : 0) +
+    (value.campus ? 1 : 0) +
+    (value.faculty ? 1 : 0)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [campusRes, facultyRes] = await Promise.all([
+          fetch(`${API_BASE}/api/getAllCampus`).then((r) => r.json()),
+          fetch(`${API_BASE}/api/getAllFaculty`).then((r) => r.json())
+        ])
+        if (cancelled) return
+
+        const campuses: Array<{ campusId: string; campusName: string }> = Array.isArray(campusRes?.data) ? campusRes.data : []
+        const faculties: Array<{ facultyId: string; facultyName: string }> = Array.isArray(facultyRes?.data) ? facultyRes.data : []
+
+        // 去重（按 name）
+        const campusUniq = Array.from(new Map(campuses.map((c) => [c.campusName, c])).values()).sort((a, b) =>
+          String(a.campusName || '').localeCompare(String(b.campusName || ''), 'zh-CN')
+        )
+        const facultyUniq = Array.from(new Map(faculties.map((f) => [f.facultyName, f])).values()).sort((a, b) =>
+          String(a.facultyName || '').localeCompare(String(b.facultyName || ''), 'zh-CN')
+        )
+
+        setCampusOptions(campusUniq)
+        setFacultyOptions(facultyUniq)
+      } catch (_e) {
+        // ignore
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [API_BASE])
 
   const sortedDepartments = useMemo(() => {
     return [...departments].sort((a, b) => a.localeCompare(b, 'zh-CN'))
@@ -51,13 +100,28 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
   const apply = () => {
     onFilterChange({
       selectedDepartments: uniq(draft.selectedDepartments),
-      onlyWithReviews: !!draft.onlyWithReviews
+      onlyWithReviews: !!draft.onlyWithReviews,
+      courseName: draft.courseName.trim(),
+      courseCode: draft.courseCode.trim(),
+      teacherCode: draft.teacherCode.trim(),
+      teacherName: draft.teacherName.trim(),
+      campus: draft.campus,
+      faculty: draft.faculty
     })
     setIsOpen(false)
   }
 
   const resetAndApply = () => {
-    const cleared: FilterState = { selectedDepartments: [], onlyWithReviews: false }
+    const cleared: FilterState = {
+      selectedDepartments: [],
+      onlyWithReviews: false,
+      courseName: '',
+      courseCode: '',
+      teacherCode: '',
+      teacherName: '',
+      campus: '',
+      faculty: ''
+    }
     setDraft(cleared)
     setSearchTerm('')
     onFilterChange(cleared)
@@ -76,7 +140,7 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
   )
 
   const content = (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 max-h-[calc(100vh-190px)] overflow-y-auto">
       <div className="flex items-center justify-between">
         <div className="text-sm font-extrabold text-slate-800">高级筛选</div>
         <button
@@ -89,6 +153,82 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white/70 p-3">
+        <div className="text-sm font-extrabold text-slate-800 mb-2">检索条件</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <div className="text-[11px] font-bold text-slate-600 mb-1">课程名称</div>
+            <input
+              type="text"
+              placeholder="如：高等数学"
+              value={draft.courseName}
+              onChange={(e) => setDraft((p) => ({ ...p, courseName: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-600 mb-1">课程代码</div>
+            <input
+              type="text"
+              placeholder="如：TJ12345"
+              value={draft.courseCode}
+              onChange={(e) => setDraft((p) => ({ ...p, courseCode: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-600 mb-1">教师工号</div>
+            <input
+              type="text"
+              placeholder="如：20231234"
+              value={draft.teacherCode}
+              onChange={(e) => setDraft((p) => ({ ...p, teacherCode: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-600 mb-1">教师姓名</div>
+            <input
+              type="text"
+              placeholder="如：张三"
+              value={draft.teacherName}
+              onChange={(e) => setDraft((p) => ({ ...p, teacherName: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-600 mb-1">校区</div>
+            <select
+              value={draft.campus}
+              onChange={(e) => setDraft((p) => ({ ...p, campus: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            >
+              <option value="">不限</option>
+              {campusOptions.map((c) => (
+                <option key={c.campusId || c.campusName} value={c.campusId}>
+                  {c.campusName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-600 mb-1">开课学院</div>
+            <select
+              value={draft.faculty}
+              onChange={(e) => setDraft((p) => ({ ...p, faculty: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            >
+              <option value="">不限</option>
+              {facultyOptions.map((f) => (
+                <option key={f.facultyId || f.facultyName} value={f.facultyId}>
+                  {f.facultyName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white/70 p-3">
@@ -255,4 +395,3 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
     </>
   )
 }
-

@@ -6,6 +6,8 @@ type PkBindings = {
 }
 
 const MAX_SQL_VARS = 80
+// Keep consistent with pk original backend (INNER_LABEL_LIST / LABEL_LIST)
+const OPTIONAL_LABEL_IDS = [947, 955, 956, 957, 958]
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
@@ -236,16 +238,29 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     const calendarId = Number(body?.calendarId)
     if (!Number.isFinite(calendarId)) return c.json(jsonErr(400, 'Missing calendarId'), 400)
 
-    const sqlByCalendar =
-      "SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature_by_calendar WHERE calendarId = ? AND courseLabelName LIKE '%\u901a\u8bc6%' AND courseLabelName LIKE '%\u9009\u4fee%' ORDER BY courseLabelId DESC"
-    const sqlLegacy =
-      "SELECT DISTINCT courseLabelId, courseLabelName FROM coursenature WHERE calendarId = ? AND courseLabelName LIKE '%\u901a\u8bc6%' AND courseLabelName LIKE '%\u9009\u4fee%' ORDER BY courseLabelId DESC"
+    const placeholders = OPTIONAL_LABEL_IDS.map(() => '?').join(',')
+    const sqlByCalendar = `
+      SELECT DISTINCT n.courseLabelId as courseLabelId, n.courseLabelName as courseLabelName
+      FROM coursenature_by_calendar n
+      JOIN coursedetail cd ON cd.courseLabelId = n.courseLabelId AND cd.calendarId = n.calendarId
+      WHERE n.calendarId = ?
+        AND n.courseLabelId IN (${placeholders})
+      ORDER BY n.courseLabelId DESC
+    `
+    const sqlLegacy = `
+      SELECT DISTINCT n.courseLabelId as courseLabelId, n.courseLabelName as courseLabelName
+      FROM coursenature n
+      JOIN coursedetail cd ON cd.courseLabelId = n.courseLabelId
+      WHERE cd.calendarId = ?
+        AND n.courseLabelId IN (${placeholders})
+      ORDER BY n.courseLabelId DESC
+    `
 
     try {
-      const { results } = await c.env.DB.prepare(sqlByCalendar).bind(calendarId).all<any>()
+      const { results } = await c.env.DB.prepare(sqlByCalendar).bind(calendarId, ...OPTIONAL_LABEL_IDS).all<any>()
       return c.json(jsonOk(results || []))
     } catch (_e) {
-      const { results } = await c.env.DB.prepare(sqlLegacy).bind(calendarId).all<any>()
+      const { results } = await c.env.DB.prepare(sqlLegacy).bind(calendarId, ...OPTIONAL_LABEL_IDS).all<any>()
       return c.json(jsonOk(results || []))
     }
   })
@@ -268,6 +283,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
              cd.courseCode as courseCode,
              cd.courseName as courseName,
              f.facultyI18n as facultyI18n,
+             MAX(cd.credit) as credit,
              GROUP_CONCAT(DISTINCT ca.campusI18n) as campus_list
            FROM coursedetail cd
            LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
@@ -296,7 +312,8 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
           .filter(Boolean),
         courseCode: String(r.courseCode || ''),
         courseName: String(r.courseName || ''),
-        facultyI18n: String(r.facultyI18n || '')
+        facultyI18n: String(r.facultyI18n || ''),
+        credit: Number(r.credit || 0)
       })
     }
 
@@ -504,6 +521,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     if (!patterns) return c.json(jsonErr(400, '输入参数有误', []), 400)
 
     const orLike = patterns.map(() => 't.arrangeInfoText LIKE ?').join(' OR ')
+    const labelPlaceholders = OPTIONAL_LABEL_IDS.map(() => '?').join(',')
     const query = `
       SELECT
         cd.courseCode as courseCode,
@@ -519,15 +537,12 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       LEFT JOIN coursenature_by_calendar n ON n.courseLabelId = cd.courseLabelId AND n.calendarId = cd.calendarId
       WHERE cd.calendarId = ?
         AND (${orLike})
-        AND (
-          n.courseLabelName LIKE '%通识选修%'
-          OR (n.courseLabelName LIKE '%通识%' AND n.courseLabelName NOT LIKE '%必修%')
-        )
+        AND cd.courseLabelId IN (${labelPlaceholders})
       GROUP BY cd.courseCode, cd.courseName, f.facultyI18n
       ORDER BY cd.courseCode ASC
     `
 
-    const { results } = await c.env.DB.prepare(query).bind(calendarId, ...patterns).all<any>()
+    const { results } = await c.env.DB.prepare(query).bind(calendarId, ...patterns, ...OPTIONAL_LABEL_IDS).all<any>()
     const data = (results || []).map((r: any) => ({
       courseCode: String(r.courseCode || ''),
       courseName: String(r.courseName || ''),

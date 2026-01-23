@@ -129,9 +129,7 @@
                 <span v-if="typeof r.rating === 'number'">评分 {{ r.rating }}</span>
               </div>
             </div>
-            <div class="text-sm whitespace-pre-wrap break-words">
-              {{ r.comment }}
-            </div>
+            <div class="review-markdown text-sm break-words" v-html="renderComment(r.comment || '')"></div>
           </a-card>
         </div>
       </div>
@@ -146,6 +144,7 @@
 <script lang="ts">
 import axios from 'axios'
 import ReviewFanCard from './ReviewFanCard.vue'
+import { renderMarkdown } from '@/utils/markdown'
 
 type Review = {
   id?: number
@@ -237,6 +236,9 @@ export default {
     emitClose() {
       this.$emit('close')
     },
+    renderComment(md: string) {
+      return renderMarkdown(md || '')
+    },
     onNav(dir: 'next' | 'prev') {
       if (this.reviews.length < 2) return
 
@@ -282,6 +284,39 @@ export default {
   components: { ReviewFanCard }
 }
 </script>
+
+<style scoped>
+.review-markdown :deep(p) {
+  margin: 0 0 0.65rem 0;
+}
+.review-markdown :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.review-markdown :deep(ul),
+.review-markdown :deep(ol) {
+  padding-left: 1.1rem;
+  margin: 0 0 0.65rem 0;
+}
+.review-markdown :deep(li) {
+  margin: 0.15rem 0;
+}
+.review-markdown :deep(pre) {
+  margin: 0 0 0.65rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(15, 23, 42, 0.06);
+  overflow: auto;
+}
+.review-markdown :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.92em;
+}
+.review-markdown :deep(a) {
+  color: rgb(14 116 144);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+</style>
 
 <style scoped>
 .fan-card {
