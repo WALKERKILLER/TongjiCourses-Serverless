@@ -58,7 +58,8 @@ async function deleteCalendarData(db: D1Database, calendarId: number) {
   const classIds = (ids.results || []).map((r) => r.id)
 
   // SQLite/D1 的变量数量有上限，按批次删除，避免 IN (...) 参数过多
-  const chunkSize = 500
+  // Cloudflare D1 的绑定变量上限比本地 sqlite 更严格，保守取 80
+  const chunkSize = 80
   for (let i = 0; i < classIds.length; i += chunkSize) {
     const chunk = classIds.slice(i, i + chunkSize)
     const placeholders = chunk.map(() => '?').join(',')

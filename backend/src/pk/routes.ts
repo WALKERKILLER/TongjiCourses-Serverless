@@ -5,6 +5,14 @@ type PkBindings = {
   DB: D1Database
 }
 
+const MAX_SQL_VARS = 80
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
 function jsonOk(data: any) {
   return { code: 200, msg: '查询成功', data }
 }
@@ -122,30 +130,34 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     if (courseCodes.length === 0) return c.json(jsonOk([]))
 
     // 拉取所有相关 teaching class（coursedetail）
-    const placeholders = courseCodes.map(() => '?').join(',')
-    const cdRowsRes = await c.env.DB
-      .prepare(
-        `SELECT
-           cd.*,
-           f.facultyI18n as facultyI18n,
-           ca.campusI18n as campusI18n,
-           n.courseLabelName as courseLabelName,
-           l.teachingLanguageI18n as teachingLanguageI18n
-         FROM coursedetail cd
-         LEFT JOIN faculty f ON f.faculty = cd.faculty
-         LEFT JOIN campus ca ON ca.campus = cd.campus
-         LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
-         LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
-         WHERE cd.calendarId = ?
-           AND cd.courseCode IN (${placeholders})
-         ORDER BY cd.courseCode ASC, cd.code ASC`
-      )
-      .bind(calendarId, ...courseCodes)
-      .all<any>()
+    const cdRowsAll: any[] = []
+    for (const part of chunk(courseCodes, MAX_SQL_VARS)) {
+      const placeholders = part.map(() => '?').join(',')
+      const cdRowsRes = await c.env.DB
+        .prepare(
+          `SELECT
+             cd.*,
+             f.facultyI18n as facultyI18n,
+             ca.campusI18n as campusI18n,
+             n.courseLabelName as courseLabelName,
+             l.teachingLanguageI18n as teachingLanguageI18n
+           FROM coursedetail cd
+           LEFT JOIN faculty f ON f.faculty = cd.faculty
+           LEFT JOIN campus ca ON ca.campus = cd.campus
+           LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
+           LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
+           WHERE cd.calendarId = ?
+             AND cd.courseCode IN (${placeholders})
+           ORDER BY cd.courseCode ASC, cd.code ASC`
+        )
+        .bind(calendarId, ...part)
+        .all<any>()
+      if (cdRowsRes.results?.length) cdRowsAll.push(...(cdRowsRes.results || []))
+    }
 
     const outMap = new Map<string, any>()
 
-    for (const row of cdRowsRes.results || []) {
+    for (const row of cdRowsAll) {
       const courseCode = String(row.courseCode || '')
       if (!courseCode) continue
 
@@ -226,31 +238,35 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     const ids = Array.isArray(body?.ids) ? body.ids.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n)) : []
     if (!Number.isFinite(calendarId) || ids.length === 0) return c.json(jsonErr(400, 'ids 不能为空'), 400)
 
-    const placeholders = ids.map(() => '?').join(',')
-    // 课程列表：按 label 分组，返回用于搜索/添加的粗略信息
-    const rows = await c.env.DB
-      .prepare(
-        `SELECT
-           cd.courseLabelId as courseLabelId,
-           n.courseLabelName as courseLabelName,
-           cd.courseCode as courseCode,
-           cd.courseName as courseName,
-           f.facultyI18n as facultyI18n,
-           GROUP_CONCAT(DISTINCT ca.campusI18n) as campus_list
-         FROM coursedetail cd
-         LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
-         LEFT JOIN faculty f ON f.faculty = cd.faculty
-         LEFT JOIN campus ca ON ca.campus = cd.campus
-         WHERE cd.calendarId = ?
-           AND cd.courseLabelId IN (${placeholders})
-         GROUP BY cd.courseLabelId, cd.courseCode, cd.courseName, f.facultyI18n
-         ORDER BY cd.courseLabelId DESC, cd.courseCode ASC`
-      )
-      .bind(calendarId, ...ids)
-      .all<any>()
+    // 课程列表：按 label 分组，返回用于搜索/添加的粗略信息（D1 变量上限较低，分块查询）
+    const rowsAll: any[] = []
+    for (const part of chunk(ids, MAX_SQL_VARS)) {
+      const placeholders = part.map(() => '?').join(',')
+      const rows = await c.env.DB
+        .prepare(
+          `SELECT
+             cd.courseLabelId as courseLabelId,
+             n.courseLabelName as courseLabelName,
+             cd.courseCode as courseCode,
+             cd.courseName as courseName,
+             f.facultyI18n as facultyI18n,
+             GROUP_CONCAT(DISTINCT ca.campusI18n) as campus_list
+           FROM coursedetail cd
+           LEFT JOIN coursenature n ON n.courseLabelId = cd.courseLabelId
+           LEFT JOIN faculty f ON f.faculty = cd.faculty
+           LEFT JOIN campus ca ON ca.campus = cd.campus
+           WHERE cd.calendarId = ?
+             AND cd.courseLabelId IN (${placeholders})
+           GROUP BY cd.courseLabelId, cd.courseCode, cd.courseName, f.facultyI18n
+           ORDER BY cd.courseLabelId DESC, cd.courseCode ASC`
+        )
+        .bind(calendarId, ...part)
+        .all<any>()
+      if (rows.results?.length) rowsAll.push(...(rows.results || []))
+    }
 
     const map = new Map<number, { courseLabelId: number; courseLabelName: string; courses: any[] }>()
-    for (const r of rows.results || []) {
+    for (const r of rowsAll) {
       const id = Number(r.courseLabelId)
       if (!map.has(id)) {
         map.set(id, { courseLabelId: id, courseLabelName: String(r.courseLabelName || ''), courses: [] })
@@ -279,25 +295,29 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
     const codes = courseCode ? [courseCode] : courseCodes
     if (codes.length === 0) return c.json(jsonErr(400, '参数错误: 缺少 courseCode(s)'), 400)
 
-    const placeholders = codes.map(() => '?').join(',')
-    const cdRows = await c.env.DB
-      .prepare(
-        `SELECT
-           cd.*,
-           ca.campusI18n as campusI18n,
-           l.teachingLanguageI18n as teachingLanguageI18n
-         FROM coursedetail cd
-         LEFT JOIN campus ca ON ca.campus = cd.campus
-         LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
-         WHERE cd.calendarId = ?
-           AND cd.courseCode IN (${placeholders})
-         ORDER BY cd.courseCode ASC, cd.code ASC`
-      )
-      .bind(calendarId, ...codes)
-      .all<any>()
+    const cdRowsAll: any[] = []
+    for (const part of chunk(codes, MAX_SQL_VARS)) {
+      const placeholders = part.map(() => '?').join(',')
+      const cdRows = await c.env.DB
+        .prepare(
+          `SELECT
+             cd.*,
+             ca.campusI18n as campusI18n,
+             l.teachingLanguageI18n as teachingLanguageI18n
+           FROM coursedetail cd
+           LEFT JOIN campus ca ON ca.campus = cd.campus
+           LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
+           WHERE cd.calendarId = ?
+             AND cd.courseCode IN (${placeholders})
+           ORDER BY cd.courseCode ASC, cd.code ASC`
+        )
+        .bind(calendarId, ...part)
+        .all<any>()
+      if (cdRows.results?.length) cdRowsAll.push(...(cdRows.results || []))
+    }
 
     const byCourseCode = new Map<string, any[]>()
-    for (const row of cdRows.results || []) {
+    for (const row of cdRowsAll) {
       const cc = String(row.courseCode || '')
       if (!cc) continue
       if (!byCourseCode.has(cc)) byCourseCode.set(cc, [])
@@ -492,22 +512,26 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
 
     if (allCodes.length === 0) return c.json(jsonOk(out))
 
-    const placeholders = allCodes.map(() => '?').join(',')
-    const cdRows = await c.env.DB
-      .prepare(
-        `SELECT
-           cd.*,
-           ca.campusI18n as campusI18n,
-           l.teachingLanguageI18n as teachingLanguageI18n
-         FROM coursedetail cd
-         LEFT JOIN campus ca ON ca.campus = cd.campus
-         LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
-         WHERE cd.calendarId = ?
-           AND cd.courseCode IN (${placeholders})
-         ORDER BY cd.courseCode ASC, cd.code ASC`
-      )
-      .bind(calendarId, ...allCodes)
-      .all<any>()
+    const cdRowsAll: any[] = []
+    for (const part of chunk(allCodes, MAX_SQL_VARS)) {
+      const placeholders = part.map(() => '?').join(',')
+      const cdRows = await c.env.DB
+        .prepare(
+          `SELECT
+             cd.*,
+             ca.campusI18n as campusI18n,
+             l.teachingLanguageI18n as teachingLanguageI18n
+           FROM coursedetail cd
+           LEFT JOIN campus ca ON ca.campus = cd.campus
+           LEFT JOIN language l ON l.teachingLanguage = cd.teachingLanguage
+           WHERE cd.calendarId = ?
+             AND cd.courseCode IN (${placeholders})
+           ORDER BY cd.courseCode ASC, cd.code ASC`
+        )
+        .bind(calendarId, ...part)
+        .all<any>()
+      if (cdRows.results?.length) cdRowsAll.push(...(cdRows.results || []))
+    }
 
     // target majorId for isExclusive
     let targetMajorId: number | null = null
@@ -519,7 +543,7 @@ export function registerPkRoutes<T extends PkBindings>(app: Hono<{ Bindings: T }
       targetMajorId = row?.id ?? null
     }
 
-    for (const row of cdRows.results || []) {
+    for (const row of cdRowsAll) {
       const cc = String(row.courseCode || '')
       if (!cc) continue
 
