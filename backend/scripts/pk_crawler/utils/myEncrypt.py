@@ -27,7 +27,15 @@ STU_PWD = CONFIG['Account']['passwd']
 def getRSAPublicKey(js_url):
     # js_url = RSA_URL
 
-    response = requests.get(js_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'})
+    s = requests.Session()
+    s.trust_env = False
+    response = s.get(
+        js_url,
+        headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+        },
+        timeout=60,
+    )
 
     # 从 js 文件中提取公钥
     content = response.text

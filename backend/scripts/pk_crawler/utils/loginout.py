@@ -36,6 +36,8 @@ def login():
     }
 
     session = requests.Session()
+    # Avoid picking up proxy env vars (common in CI) which can break SSO/login flows.
+    session.trust_env = False
     session.headers.update(headers)
     response = session.get(entry_url)
 

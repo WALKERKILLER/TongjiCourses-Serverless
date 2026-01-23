@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 import time
+import traceback
 
 try:
     import requests
@@ -76,6 +77,22 @@ def ensure_config_copy(config_path: pathlib.Path):
     return tmp
 
 
+def disable_proxy_env():
+    # GitHub runners (or user environments) may have proxy env vars set; requests will honor them by default.
+    # Onesystem login is sensitive to proxies and may fail unpredictably, so we disable them explicitly.
+    for key in [
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+    ]:
+        os.environ.pop(key, None)
+
+
 def fetch_manual_arrange_page(session: requests.Session, calendar_id: int, page_num: int, page_size: int):
     payload = {
         "condition": {
@@ -97,12 +114,28 @@ def fetch_manual_arrange_page(session: requests.Session, calendar_id: int, page_
         "Referer": "https://1.tongji.edu.cn/taskResultQuery",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
     }
-    res = session.post(url, json=payload, headers=headers, timeout=60)
-    res.raise_for_status()
-    return res.json()
+    last_err = None
+    for attempt in range(1, 6):
+        try:
+            res = session.post(url, json=payload, headers=headers, timeout=120)
+            if res.status_code in (429, 500, 502, 503, 504):
+                raise requests.HTTPError(f"HTTP {res.status_code}", response=res)
+            res.raise_for_status()
+            return res.json()
+        except Exception as e:
+            last_err = e
+            sleep_s = min(10, 1 + attempt * 2)
+            print(
+                f"[warn] manualArrange/page failed (calendarId={calendar_id} page={page_num} attempt={attempt}): {e}. retry in {sleep_s}s",
+                file=sys.stderr,
+            )
+            time.sleep(sleep_s)
+    raise last_err  # type: ignore[misc]
 
 
 def main() -> int:
+    disable_proxy_env()
+
     parser = argparse.ArgumentParser(
         description="Login to Onesystem then export SQL files for syncing pk tables into D1 (for GitHub Actions)."
     )
@@ -146,9 +179,16 @@ def main() -> int:
     except Exception as e:
         print("Failed to import pk crawler login utilities.")
         print(str(e))
+        traceback.print_exc()
         return 1
 
-    session = loginout.login()
+    try:
+        session = loginout.login()
+    except Exception as e:
+        print("Login crashed.")
+        print(str(e))
+        traceback.print_exc()
+        return 1
     if session is None:
         print("Login failed.")
         return 1
@@ -370,4 +410,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
