@@ -17,7 +17,7 @@ on:
     branches: ["dev"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   sync:
@@ -118,8 +118,10 @@ jobs:
         run: npx wrangler d1 execute jcourse-db --remote --file="./migrations/001_pk_schema.sql"
 
       - name: Login & export SQL
+        id: export
         working-directory: backend
         shell: bash
+        continue-on-error: true
         run: |
           set -euo pipefail
           python ./scripts/pk-login-and-export-sql.py \
@@ -128,6 +130,42 @@ jobs:
             --out-dir ".tmp/pk-sync" \
             --config "./config.onesystem.ini" \
             | tee pk-sync-summary.log
+
+      - name: Debug export failure (commit comment)
+        if: steps.export.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const logPath = path.join(process.env.GITHUB_WORKSPACE, "backend", "pk-sync-summary.log");
+            let body = "";
+            try {
+              const content = fs.readFileSync(logPath, "utf8");
+              const lines = content.split(/\r?\n/);
+              const tail = lines.slice(-200).join("\n");
+              body =
+                "pk-sync: Login & export SQL failed. Last 200 lines:\n\n" +
+                "```text\n" +
+                tail +
+                "\n```";
+            } catch (e) {
+              body = "pk-sync: Login & export SQL failed, but failed to read pk-sync-summary.log: " + String(e);
+            }
+
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body,
+            });
+
+      - name: Fail if export failed
+        if: steps.export.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "Login & export SQL failed (see commit comment for tail logs)." >&2
+          exit 1
 
       - name: Apply SQL to D1 (remote)
         working-directory: backend
