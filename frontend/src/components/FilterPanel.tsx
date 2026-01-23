@@ -8,7 +8,6 @@ export interface FilterState {
   teacherCode: string
   teacherName: string
   campus: string
-  faculty: string
 }
 
 interface FilterPanelProps {
@@ -27,7 +26,8 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
   const [draft, setDraft] = useState<FilterState>(value)
   const [searchTerm, setSearchTerm] = useState('')
   const [campusOptions, setCampusOptions] = useState<Array<{ campusId: string; campusName: string }>>([])
-  const [facultyOptions, setFacultyOptions] = useState<Array<{ facultyId: string; facultyName: string }>>([])
+  const [campusPickerOpen, setCampusPickerOpen] = useState(false)
+  const [campusSearch, setCampusSearch] = useState('')
 
   useEffect(() => {
     setDraft(value)
@@ -40,32 +40,23 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
     (value.courseCode ? 1 : 0) +
     (value.teacherCode ? 1 : 0) +
     (value.teacherName ? 1 : 0) +
-    (value.campus ? 1 : 0) +
-    (value.faculty ? 1 : 0)
+    (value.campus ? 1 : 0)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const [campusRes, facultyRes] = await Promise.all([
-          fetch(`${API_BASE}/api/getAllCampus`).then((r) => r.json()),
-          fetch(`${API_BASE}/api/getAllFaculty`).then((r) => r.json())
-        ])
+        const [campusRes] = await Promise.all([fetch(`${API_BASE}/api/getAllCampus`).then((r) => r.json())])
         if (cancelled) return
 
         const campuses: Array<{ campusId: string; campusName: string }> = Array.isArray(campusRes?.data) ? campusRes.data : []
-        const faculties: Array<{ facultyId: string; facultyName: string }> = Array.isArray(facultyRes?.data) ? facultyRes.data : []
 
         // 去重（按 name）
         const campusUniq = Array.from(new Map(campuses.map((c) => [c.campusName, c])).values()).sort((a, b) =>
           String(a.campusName || '').localeCompare(String(b.campusName || ''), 'zh-CN')
         )
-        const facultyUniq = Array.from(new Map(faculties.map((f) => [f.facultyName, f])).values()).sort((a, b) =>
-          String(a.facultyName || '').localeCompare(String(b.facultyName || ''), 'zh-CN')
-        )
 
         setCampusOptions(campusUniq)
-        setFacultyOptions(facultyUniq)
       } catch (_e) {
         // ignore
       }
@@ -105,8 +96,7 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
       courseCode: draft.courseCode.trim(),
       teacherCode: draft.teacherCode.trim(),
       teacherName: draft.teacherName.trim(),
-      campus: draft.campus,
-      faculty: draft.faculty
+      campus: draft.campus
     })
     setIsOpen(false)
   }
@@ -119,8 +109,7 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
       courseCode: '',
       teacherCode: '',
       teacherName: '',
-      campus: '',
-      faculty: ''
+      campus: ''
     }
     setDraft(cleared)
     setSearchTerm('')
@@ -141,6 +130,76 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
 
   const content = (
     <div className="p-4 space-y-4 max-h-[calc(100vh-190px)] overflow-y-auto">
+      {campusPickerOpen && (
+        <>
+          <div className="fixed inset-0 z-[80] bg-black/25 backdrop-blur-sm" onClick={() => setCampusPickerOpen(false)} />
+          <div className="fixed inset-x-4 bottom-4 z-[90] max-h-[70vh] rounded-3xl bg-white shadow-2xl border border-white/60 overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div className="text-sm font-extrabold text-slate-800">选择校区</div>
+              <button
+                type="button"
+                className="w-8 h-8 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                onClick={() => setCampusPickerOpen(false)}
+                aria-label="关闭"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4">
+              <input
+                type="text"
+                placeholder="搜索校区..."
+                value={campusSearch}
+                onChange={(e) => setCampusSearch(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-2xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+              />
+            </div>
+            <div className="px-2 pb-3 max-h-[calc(70vh-132px)] overflow-y-auto">
+              {(() => {
+                const q = campusSearch.trim().toLowerCase()
+                const list = q ? campusOptions.filter((c) => String(c.campusName || '').toLowerCase().includes(q)) : campusOptions
+                return (
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraft((p) => ({ ...p, campus: '' }))
+                        setCampusPickerOpen(false)
+                      }}
+                      className={`w-full px-3 py-3 rounded-2xl flex items-center justify-between border ${
+                        !draft.campus ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-sm font-bold text-slate-700">不限</span>
+                      {!draft.campus && <span className="text-cyan-600 font-black">✓</span>}
+                    </button>
+                    {list.map((c) => {
+                      const selected = draft.campus === c.campusId
+                      return (
+                        <button
+                          key={c.campusId || c.campusName}
+                          type="button"
+                          onClick={() => {
+                            setDraft((p) => ({ ...p, campus: c.campusId }))
+                            setCampusPickerOpen(false)
+                          }}
+                          className={`w-full px-3 py-3 rounded-2xl flex items-center justify-between border ${
+                            selected ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm font-semibold text-slate-700 truncate">{c.campusName}</span>
+                          {selected && <span className="text-cyan-600 font-black">✓</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="text-sm font-extrabold text-slate-800">高级筛选</div>
         <button
@@ -200,33 +259,20 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
           </div>
           <div>
             <div className="text-[11px] font-bold text-slate-600 mb-1">校区</div>
-            <select
-              value={draft.campus}
-              onChange={(e) => setDraft((p) => ({ ...p, campus: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
+            <button
+              type="button"
+              onClick={() => setCampusPickerOpen(true)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white text-slate-700 flex items-center justify-between gap-2"
             >
-              <option value="">不限</option>
-              {campusOptions.map((c) => (
-                <option key={c.campusId || c.campusName} value={c.campusId}>
-                  {c.campusName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-600 mb-1">开课学院</div>
-            <select
-              value={draft.faculty}
-              onChange={(e) => setDraft((p) => ({ ...p, faculty: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none bg-white"
-            >
-              <option value="">不限</option>
-              {facultyOptions.map((f) => (
-                <option key={f.facultyId || f.facultyName} value={f.facultyId}>
-                  {f.facultyName}
-                </option>
-              ))}
-            </select>
+              <span className="truncate">
+                {draft.campus
+                  ? campusOptions.find((c) => c.campusId === draft.campus)?.campusName || '已选择'
+                  : '不限'}
+              </span>
+              <svg className="w-4 h-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

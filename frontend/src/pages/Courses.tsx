@@ -38,7 +38,6 @@ export default function Courses() {
     teacherCode: '',
     teacherName: '',
     campus: '',
-    faculty: ''
   })
 
   const search = async (legacy?: boolean, p = 1) => {
@@ -53,8 +52,7 @@ export default function Courses() {
         courseCode: filters.courseCode,
         teacherCode: filters.teacherCode,
         teacherName: filters.teacherName,
-        campus: filters.campus,
-        faculty: filters.faculty
+        campus: filters.campus
       })
       setCourses(Array.isArray(data.data) ? data.data : [])
       setTotalPages(data.totalPages || 1)
@@ -115,8 +113,7 @@ export default function Courses() {
       courseCode: '',
       teacherCode: '',
       teacherName: '',
-      campus: '',
-      faculty: ''
+      campus: ''
     }) // 重置筛选
     search(newValue, 1)
   }
