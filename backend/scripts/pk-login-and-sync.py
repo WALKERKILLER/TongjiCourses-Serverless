@@ -99,7 +99,10 @@ def main() -> int:
         return 1
 
     url = args.base_url.rstrip("/") + "/api/admin/pk/sync"
-    res = requests.post(
+    # Avoid picking up corporate proxy env vars (can break GitHub Actions / local networks).
+    http = requests.Session()
+    http.trust_env = False
+    res = http.post(
         url,
         headers={"x-admin-secret": admin_secret, "content-type": "application/json"},
         data=json.dumps({"calendarId": args.calendar_id, "depth": args.depth, "onesystemCookie": onesystem_cookie}),
