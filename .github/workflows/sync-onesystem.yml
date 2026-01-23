@@ -58,19 +58,30 @@ jobs:
 
       - name: Trigger backend sync
         env:
-          BACKEND_URL: ${{ secrets.VITE_API_URL }}
+          # Prefer BACKEND_URL (explicit backend base), fallback to VITE_API_URL (frontend uses it as API base)
+          BACKEND_URL: ${{ secrets.BACKEND_URL || secrets.VITE_API_URL }}
           ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
           ONESYSTEM_COOKIE: ${{ secrets.ONESYSTEM_COOKIE }}
           CALENDAR_ID: ${{ steps.resolve.outputs.calendarId }}
           DEPTH: ${{ steps.resolve.outputs.depth }}
         run: |
           set -euo pipefail
+          BACKEND_URL="${BACKEND_URL%/}"
+          if [[ "$BACKEND_URL" == */api ]]; then BACKEND_URL="${BACKEND_URL%/api}"; fi
+
           if [ -z "$BACKEND_URL" ]; then
-            echo "Missing secrets.VITE_API_URL (backend base url)" >&2
+            echo "Missing secrets.BACKEND_URL (or secrets.VITE_API_URL) (backend base url)" >&2
             exit 1
           fi
           if [ -z "$ADMIN_SECRET" ]; then
             echo "Missing secrets.JCOURSE_ADMIN_SECRET (x-admin-secret)" >&2
+            exit 1
+          fi
+
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X OPTIONS "$BACKEND_URL/api/admin/pk/sync" || true)"
+          if [ "$code" = "404" ]; then
+            echo "Backend endpoint not found: $BACKEND_URL/api/admin/pk/sync" >&2
+            echo "This usually means the backend Worker at BACKEND_URL is not deployed with pk sync route yet (or BACKEND_URL points to frontend Pages)." >&2
             exit 1
           fi
 
