@@ -124,12 +124,12 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          python ./scripts/pk-login-and-export-sql.py \
+          python -u ./scripts/pk-login-and-export-sql.py \
             --calendarId "${{ steps.resolve.outputs.calendarId }}" \
             --depth "${{ steps.resolve.outputs.depth }}" \
             --out-dir ".tmp/pk-sync" \
             --config "./config.onesystem.ini" \
-            | tee pk-sync-summary.log
+            2>&1 | tee pk-sync-summary.log
 
       - name: Debug export failure (commit comment)
         if: steps.export.outcome == 'failure'
