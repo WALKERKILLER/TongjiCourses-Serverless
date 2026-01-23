@@ -28,7 +28,7 @@ jobs:
     env:
       PYTHONIOENCODING: utf-8
       # Prefer BACKEND_URL (explicit backend base), fallback to VITE_API_URL (frontend uses it as API base)
-      BACKEND_URL: ${{ secrets.BACKEND_URL || secrets.VITE_API_URL }}
+      BACKEND_URL: ${{ (github.ref_name == 'dev' && secrets.BACKEND_URL_DEV) || secrets.BACKEND_URL || secrets.VITE_API_URL }}
       ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
       ONESYSTEM_SNO: ${{ secrets.ONESYSTEM_SNO }}
       ONESYSTEM_PASSWORD: ${{ secrets.ONESYSTEM_PASSWORD }}
