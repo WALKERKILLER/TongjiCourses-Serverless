@@ -57,10 +57,13 @@ async function deleteCalendarData(db: D1Database, calendarId: number) {
   const ids = await db.prepare('SELECT id FROM coursedetail WHERE calendarId = ?').bind(calendarId).all<{ id: number }>()
   const classIds = (ids.results || []).map((r) => r.id)
 
-  if (classIds.length > 0) {
-    const placeholders = classIds.map(() => '?').join(',')
-    await db.prepare(`DELETE FROM teacher WHERE teachingClassId IN (${placeholders})`).bind(...classIds).run()
-    await db.prepare(`DELETE FROM majorandcourse WHERE courseId IN (${placeholders})`).bind(...classIds).run()
+  // SQLite/D1 的变量数量有上限，按批次删除，避免 IN (...) 参数过多
+  const chunkSize = 500
+  for (let i = 0; i < classIds.length; i += chunkSize) {
+    const chunk = classIds.slice(i, i + chunkSize)
+    const placeholders = chunk.map(() => '?').join(',')
+    await db.prepare(`DELETE FROM teacher WHERE teachingClassId IN (${placeholders})`).bind(...chunk).run()
+    await db.prepare(`DELETE FROM majorandcourse WHERE courseId IN (${placeholders})`).bind(...chunk).run()
   }
 
   await db.prepare('DELETE FROM coursedetail WHERE calendarId = ?').bind(calendarId).run()
@@ -95,110 +98,116 @@ async function ensureAliasesTable(db: D1Database) {
     .run()
 }
 
-async function tryBindCourseAliases(db: D1Database, course: any) {
-  const courseCode = normalizeStr(course?.courseCode)
-  const newCourseCode = normalizeStr(course?.newCourseCode)
-
-  const candidates = [newCourseCode, courseCode].filter(Boolean)
-  if (candidates.length === 0) return
-
-  const placeholders = candidates.map(() => '?').join(',')
-  const row = await db
-    .prepare(`SELECT id FROM courses WHERE code IN (${placeholders}) LIMIT 1`)
-    .bind(...candidates)
-    .first<{ id: number }>()
-
-  if (!row?.id) return
-
-  for (const alias of candidates) {
-    await db
-      .prepare(
-        `INSERT INTO course_aliases (system, alias, course_id)
-         VALUES ('onesystem', ?, ?)
-         ON CONFLICT(system, alias) DO UPDATE SET course_id=excluded.course_id`
-      )
-      .bind(alias, row.id)
-      .run()
-  }
-}
-
 async function upsertCourseList(db: D1Database, list: any[], calendarId: number): Promise<number> {
   let inserted = 0
+  if (!Array.isArray(list) || list.length === 0) return 0
+
+  // calendar 只需要写一次
+  const calendarIdI18n = normalizeStr(list?.[0]?.calendarIdI18n) || null
+  await db.prepare('INSERT OR REPLACE INTO calendar (calendarId, calendarIdI18n) VALUES (?, ?)').bind(calendarId, calendarIdI18n).run()
+
+  // 缓存维表，避免重复 upsert 造成大量 SQL
+  const seenLanguage = new Set<string>()
+  const seenCourseNature = new Set<number>()
+  const seenAssessment = new Set<string>()
+  const seenCampus = new Set<string>()
+  const seenFaculty = new Set<string>()
+  const majorIdCache = new Map<string, number>() // name -> id (0 means not found)
+
+  const stmts: any[] = []
+  const flush = async () => {
+    if (stmts.length === 0) return
+    await db.batch(stmts.splice(0, stmts.length))
+  }
+  const push = async (stmt: any) => {
+    stmts.push(stmt)
+    if (stmts.length >= 60) await flush()
+  }
 
   for (const course of list) {
-    const calendarIdI18n = normalizeStr(course?.calendarIdI18n) || null
-    await db.prepare('INSERT OR REPLACE INTO calendar (calendarId, calendarIdI18n) VALUES (?, ?)').bind(calendarId, calendarIdI18n).run()
-
     const teachingLanguage = normalizeStr(course?.teachingLanguage) || null
     const teachingLanguageI18n = normalizeStr(course?.teachingLanguageI18n) || null
-    if (teachingLanguage) {
-      await db
-        .prepare(
-          `INSERT INTO language (teachingLanguage, teachingLanguageI18n, calendarId)
-           VALUES (?, ?, ?)
-           ON CONFLICT(teachingLanguage) DO UPDATE SET teachingLanguageI18n=excluded.teachingLanguageI18n, calendarId=excluded.calendarId`
-        )
-        .bind(teachingLanguage, teachingLanguageI18n, calendarId)
-        .run()
+    if (teachingLanguage && !seenLanguage.has(teachingLanguage)) {
+      seenLanguage.add(teachingLanguage)
+      await push(
+        db
+          .prepare(
+            `INSERT INTO language (teachingLanguage, teachingLanguageI18n, calendarId)
+             VALUES (?, ?, ?)
+             ON CONFLICT(teachingLanguage) DO UPDATE SET teachingLanguageI18n=excluded.teachingLanguageI18n, calendarId=excluded.calendarId`
+          )
+          .bind(teachingLanguage, teachingLanguageI18n, calendarId)
+      )
     }
 
     const courseLabelId = asInt(course?.courseLabelId)
     const courseLabelName = normalizeStr(course?.courseLabelName) || null
-    if (courseLabelId !== null) {
-      await db
-        .prepare(
-          `INSERT INTO coursenature (courseLabelId, courseLabelName, calendarId)
-           VALUES (?, ?, ?)
-           ON CONFLICT(courseLabelId) DO UPDATE SET courseLabelName=excluded.courseLabelName, calendarId=excluded.calendarId`
-        )
-        .bind(courseLabelId, courseLabelName, calendarId)
-        .run()
+    if (courseLabelId !== null && !seenCourseNature.has(courseLabelId)) {
+      seenCourseNature.add(courseLabelId)
+      await push(
+        db
+          .prepare(
+            `INSERT INTO coursenature (courseLabelId, courseLabelName, calendarId)
+             VALUES (?, ?, ?)
+             ON CONFLICT(courseLabelId) DO UPDATE SET courseLabelName=excluded.courseLabelName, calendarId=excluded.calendarId`
+          )
+          .bind(courseLabelId, courseLabelName, calendarId)
+      )
     }
 
     const assessmentMode = normalizeStr(course?.assessmentMode) || null
     const assessmentModeI18n = normalizeStr(course?.assessmentModeI18n) || null
-    if (assessmentMode) {
-      await db
-        .prepare(
-          `INSERT INTO assessment (assessmentMode, assessmentModeI18n, calendarId)
-           VALUES (?, ?, ?)
-           ON CONFLICT(assessmentMode) DO UPDATE SET assessmentModeI18n=excluded.assessmentModeI18n, calendarId=excluded.calendarId`
-        )
-        .bind(assessmentMode, assessmentModeI18n, calendarId)
-        .run()
+    if (assessmentMode && !seenAssessment.has(assessmentMode)) {
+      seenAssessment.add(assessmentMode)
+      await push(
+        db
+          .prepare(
+            `INSERT INTO assessment (assessmentMode, assessmentModeI18n, calendarId)
+             VALUES (?, ?, ?)
+             ON CONFLICT(assessmentMode) DO UPDATE SET assessmentModeI18n=excluded.assessmentModeI18n, calendarId=excluded.calendarId`
+          )
+          .bind(assessmentMode, assessmentModeI18n, calendarId)
+      )
     }
 
     const campus = normalizeStr(course?.campus) || null
     const campusI18n = normalizeStr(course?.campusI18n) || null
-    if (campus) {
-      await db
-        .prepare(
-          `INSERT INTO campus (campus, campusI18n, calendarId)
-           VALUES (?, ?, ?)
-           ON CONFLICT(campus) DO UPDATE SET campusI18n=excluded.campusI18n, calendarId=excluded.calendarId`
-        )
-        .bind(campus, campusI18n, calendarId)
-        .run()
+    if (campus && !seenCampus.has(campus)) {
+      seenCampus.add(campus)
+      await push(
+        db
+          .prepare(
+            `INSERT INTO campus (campus, campusI18n, calendarId)
+             VALUES (?, ?, ?)
+             ON CONFLICT(campus) DO UPDATE SET campusI18n=excluded.campusI18n, calendarId=excluded.calendarId`
+          )
+          .bind(campus, campusI18n, calendarId)
+      )
     }
 
     const faculty = normalizeStr(course?.faculty) || null
     const facultyI18n = normalizeStr(course?.facultyI18n) || null
-    if (faculty) {
-      await db
-        .prepare(
-          `INSERT INTO faculty (faculty, facultyI18n, calendarId)
-           VALUES (?, ?, ?)
-           ON CONFLICT(faculty) DO UPDATE SET facultyI18n=excluded.facultyI18n, calendarId=excluded.calendarId`
-        )
-        .bind(faculty, facultyI18n, calendarId)
-        .run()
+    if (faculty && !seenFaculty.has(faculty)) {
+      seenFaculty.add(faculty)
+      await push(
+        db
+          .prepare(
+            `INSERT INTO faculty (faculty, facultyI18n, calendarId)
+             VALUES (?, ?, ?)
+             ON CONFLICT(faculty) DO UPDATE SET facultyI18n=excluded.facultyI18n, calendarId=excluded.calendarId`
+          )
+          .bind(faculty, facultyI18n, calendarId)
+      )
     }
 
     const majors: unknown[] = Array.isArray(course?.majorList) ? course.majorList : []
     for (const major of majors) {
       const majorName = normalizeStr(major)
       if (!majorName) continue
+      if (majorIdCache.has(majorName)) continue
       await upsertMajor(db, majorName, calendarId)
+      const id = await getMajorIdByName(db, majorName)
+      majorIdCache.set(majorName, id ?? 0)
     }
 
     const { newCourseCode, newCode } = computeNewCode(course)
@@ -206,70 +215,63 @@ async function upsertCourseList(db: D1Database, list: any[], calendarId: number)
     const teachingClassId = asInt(course?.id)
     if (teachingClassId === null) continue
 
-    await db
-      .prepare(
-        `INSERT OR REPLACE INTO coursedetail
-         (id, code, name, courseLabelId, assessmentMode, period, weekHour, campus, number, elcNumber, startWeek, endWeek,
-          courseCode, courseName, credit, teachingLanguage, faculty, calendarId, newCourseCode, newCode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        teachingClassId,
-        normalizeStr(course?.code) || null,
-        normalizeStr(course?.name) || null,
-        courseLabelId,
-        assessmentMode,
-        course?.period ?? null,
-        course?.weekHour ?? null,
-        campus,
-        course?.number ?? null,
-        course?.elcNumber ?? null,
-        course?.startWeek ?? null,
-        course?.endWeek ?? null,
-        normalizeStr(course?.courseCode) || null,
-        normalizeStr(course?.courseName) || null,
-        course?.credits ?? null,
-        teachingLanguage,
-        faculty,
-        calendarId,
-        newCourseCode,
-        newCode
-      )
-      .run()
+    await push(
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO coursedetail
+           (id, code, name, courseLabelId, assessmentMode, period, weekHour, campus, number, elcNumber, startWeek, endWeek,
+            courseCode, courseName, credit, teachingLanguage, faculty, calendarId, newCourseCode, newCode)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          teachingClassId,
+          normalizeStr(course?.code) || null,
+          normalizeStr(course?.name) || null,
+          courseLabelId,
+          assessmentMode,
+          course?.period ?? null,
+          course?.weekHour ?? null,
+          campus,
+          course?.number ?? null,
+          course?.elcNumber ?? null,
+          course?.startWeek ?? null,
+          course?.endWeek ?? null,
+          normalizeStr(course?.courseCode) || null,
+          normalizeStr(course?.courseName) || null,
+          course?.credits ?? null,
+          teachingLanguage,
+          faculty,
+          calendarId,
+          newCourseCode,
+          newCode
+        )
+    )
 
     const arrangeInfo = normalizeStr(course?.arrangeInfo || '')
     const teachers = Array.isArray(course?.teacherList) ? course.teacherList : []
-    const arrangeLines = arrangeInfo ? arrangeInfo.split('\n') : []
 
     for (const t of teachers) {
       const teacherId = asInt(t?.id)
       if (teacherId === null) continue
-
-      const teacherName = normalizeStr(t?.teacherName)
-      let teacherSchedule = ''
-      for (const line of arrangeLines) {
-        if (teacherName && line.includes(teacherName)) teacherSchedule += `${line}\n`
-      }
-
-      await db
-        .prepare('INSERT OR REPLACE INTO teacher (id, teachingClassId, teacherCode, teacherName, arrangeInfoText) VALUES (?, ?, ?, ?, ?)')
-        .bind(teacherId, teachingClassId, normalizeStr(t?.teacherCode) || null, teacherName || null, teacherSchedule)
-        .run()
+      await push(
+        db
+          .prepare('INSERT OR REPLACE INTO teacher (id, teachingClassId, teacherCode, teacherName, arrangeInfoText) VALUES (?, ?, ?, ?, ?)')
+          .bind(teacherId, teachingClassId, normalizeStr(t?.teacherCode) || null, normalizeStr(t?.teacherName) || null, arrangeInfo)
+      )
     }
 
     for (const major of majors) {
       const majorName = normalizeStr(major)
       if (!majorName) continue
-      const majorId = await getMajorIdByName(db, majorName)
+      const majorId = majorIdCache.get(majorName) || 0
       if (!majorId) continue
-      await db.prepare('INSERT OR IGNORE INTO majorandcourse (majorId, courseId) VALUES (?, ?)').bind(majorId, teachingClassId).run()
+      await push(db.prepare('INSERT OR IGNORE INTO majorandcourse (majorId, courseId) VALUES (?, ?)').bind(majorId, teachingClassId))
     }
-
-    await tryBindCourseAliases(db, course)
 
     inserted++
   }
 
+  await flush()
   return inserted
 }
 

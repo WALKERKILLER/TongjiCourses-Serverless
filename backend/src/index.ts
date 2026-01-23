@@ -216,12 +216,29 @@ app.get('/api/course/by-code/:code', async (c) => {
       `SELECT course_id as id FROM course_aliases WHERE system = 'onesystem' AND alias = ? LIMIT 1`
     ).bind(code).first<{ id: number }>()
 
-    const courseId =
-      aliasRow?.id ??
-      (await c.env.DB.prepare('SELECT id FROM courses WHERE code = ? LIMIT 1').bind(code).first<{ id: number }>())?.id ??
-      null
+    const directRow = aliasRow?.id
+      ? null
+      : await c.env.DB.prepare('SELECT id FROM courses WHERE code = ? LIMIT 1').bind(code).first<{ id: number }>()
+
+    const courseId = aliasRow?.id ?? directRow?.id ?? null
 
     if (!courseId) return c.json({ error: 'Course not found' }, 404)
+
+    // 如果是直接命中 courses.code，顺手补齐 alias，避免每次都走回退查询
+    if (!aliasRow?.id && directRow?.id) {
+      // 防御：老库未迁移时保证表存在
+      await c.env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS course_aliases (system TEXT NOT NULL, alias TEXT NOT NULL, course_id INTEGER NOT NULL, created_at INTEGER DEFAULT (strftime(\'%s\',\'now\')), PRIMARY KEY (system, alias))'
+      ).run()
+      await c.env.DB
+        .prepare(
+          `INSERT INTO course_aliases (system, alias, course_id)
+           VALUES ('onesystem', ?, ?)
+           ON CONFLICT(system, alias) DO UPDATE SET course_id=excluded.course_id`
+        )
+        .bind(code, courseId)
+        .run()
+    }
 
     const course = await c.env.DB.prepare(
       `SELECT c.*, t.name as teacher_name FROM courses c

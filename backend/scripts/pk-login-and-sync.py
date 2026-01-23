@@ -103,7 +103,7 @@ def main() -> int:
         url,
         headers={"x-admin-secret": admin_secret, "content-type": "application/json"},
         data=json.dumps({"calendarId": args.calendar_id, "depth": args.depth, "onesystemCookie": onesystem_cookie}),
-        timeout=120,
+        timeout=600,
     )
     if res.status_code >= 400:
         print(f"Sync failed: HTTP {res.status_code}")
