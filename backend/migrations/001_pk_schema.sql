@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS teacher (
 );
 
 CREATE INDEX IF NOT EXISTS idx_teacher_teachingClassId ON teacher(teachingClassId);
+
+-- deploy-trigger: keep file change minimal so dev deploy workflow can be re-run
 CREATE INDEX IF NOT EXISTS idx_teacher_teacherCode ON teacher(teacherCode);
 CREATE INDEX IF NOT EXISTS idx_teacher_teacherName ON teacher(teacherName);
 
@@ -141,4 +143,3 @@ CREATE TABLE IF NOT EXISTS fetchlog (
   fetchTime INTEGER DEFAULT (strftime('%s', 'now')),
   msg TEXT
 );
-
