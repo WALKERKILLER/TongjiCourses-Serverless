@@ -108,7 +108,7 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
 
       {/* 弹窗 Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           {/* Soft full-page blur backdrop */}
           <div
             className="absolute inset-0 bg-slate-900/20 backdrop-blur-xl backdrop-saturate-150"
