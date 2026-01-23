@@ -87,8 +87,10 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
     if (!isOpen) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    document.body.classList.add('captcha-modal-open')
     return () => {
       document.body.style.overflow = prev
+      document.body.classList.remove('captcha-modal-open')
     }
   }, [isOpen])
 
@@ -121,7 +123,7 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           {/* Soft full-page blur backdrop */}
           <div
-            className="absolute inset-0 bg-slate-900/20 backdrop-blur-xl backdrop-saturate-150"
+            className="absolute inset-0 bg-slate-900/10"
             onClick={() => setIsOpen(false)}
           />
           <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/20 via-white/5 to-black/10" />

@@ -54,6 +54,18 @@ export default function About() {
             </a>
             源代码
           </p>
+          <p className="text-slate-600 mt-2">
+            排课模拟器及高级检索基于
+            <a
+              href="https://github.com/XiaLing233/tongji-course-scheduler"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-600 hover:text-cyan-700 underline ml-1"
+            >
+              TONGJI-COURSE-SCHEDULER
+            </a>
+            源代码
+          </p>
         </div>
       </GlassCard>
     </div>
