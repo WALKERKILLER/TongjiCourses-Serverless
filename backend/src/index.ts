@@ -95,11 +95,15 @@ async function postCreditJcourseEvent(
   env: Bindings,
   payload: any
 ): Promise<{ ok: boolean; skipped?: boolean; error?: string; status?: number }> {
-  const base = String(env.CREDIT_API_BASE || '').trim()
+  const baseRaw = String(env.CREDIT_API_BASE || '').trim()
   const secret = String(env.CREDIT_JCOURSE_SECRET || '').trim()
-  if (!base || !secret) return { ok: false, skipped: true, error: 'credit integration env not set' }
+  if (!baseRaw || !secret) return { ok: false, skipped: true, error: 'credit integration env not set' }
 
-  const url = `${base.replace(/\/$/, '')}/api/integration/jcourse/event`
+  // `credit.yourtj.de` 是积分站前端域名；其 `/api/*` rewrite 规则不一定包含 integration 接口。
+  // integration 接口应指向 backend-core（通常为 `https://core.credit.yourtj.de`）。
+  const base = baseRaw.replace(/\/$/, '')
+  const integrationBase = /^https?:\/\/credit\.yourtj\.de$/i.test(base) ? 'https://core.credit.yourtj.de' : base
+  const url = `${integrationBase.replace(/\/$/, '')}/api/integration/jcourse/event`
   const body = JSON.stringify(payload)
 
   for (let i = 0; i < 2; i++) {
@@ -112,7 +116,22 @@ async function postCreditJcourseEvent(
         },
         body
       })
-      if (res.ok) return { ok: true }
+      if (res.ok) {
+        // 防止误把前端 index.html 当成“成功响应”（200 text/html）
+        if (res.status === 204) return { ok: true }
+        const contentType = res.headers.get('content-type') || ''
+        if (!/application\/json/i.test(contentType)) {
+          const text = await res.text().catch(() => '')
+          return {
+            ok: false,
+            status: res.status,
+            error:
+              text ||
+              `Unexpected response content-type: ${contentType || 'unknown'} (check CREDIT_API_BASE)`
+          }
+        }
+        return { ok: true }
+      }
       const text = await res.text().catch(() => '')
       return { ok: false, status: res.status, error: text || `HTTP ${res.status}` }
     } catch (e: any) {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createCreditWallet, loadCreditWallet, saveCreditWallet } from '../utils/creditWallet'
-import { fetchCreditBalance, fetchCreditSummary, registerCreditWallet } from '../services/credit'
+import { clearCreditWallet, loadCreditWallet, saveCreditWallet } from '../utils/creditWallet'
+import { fetchCreditBalance, fetchCreditSummary } from '../services/credit'
 
 type SummaryData = {
   balance: number
@@ -20,6 +20,15 @@ export default function CreditWalletPanel() {
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
+  const [embedOpen, setEmbedOpen] = useState(false)
+
+  const formatError = (e: any) => {
+    const msg = String(e?.message || e || '加载失败')
+    if (/Unexpected token\s*['"]?</i.test(msg) || /<!doctype/i.test(msg) || /text\/html/i.test(msg)) {
+      return '积分站接口返回了 HTML（疑似 API Base 配置不正确）。请把 VITE_CREDIT_API_BASE 配置为 https://core.credit.yourtj.de'
+    }
+    return msg
+  }
 
   useEffect(() => {
     const onOpen = () => setIsOpen(true)
@@ -27,38 +36,57 @@ export default function CreditWalletPanel() {
     return () => window.removeEventListener('open-credit-wallet', onOpen as any)
   }, [])
 
-  const refresh = async () => {
-    if (!wallet) return
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const origin = String((e as any).origin || '')
+      if (!origin.includes('credit.yourtj.de') && !origin.includes('vercel.app')) return
+
+      const data: any = (e as any).data
+      if (!data || data.type !== 'yourtj-credit-wallet' || !data.wallet?.userHash) return
+
+      saveCreditWallet(data.wallet)
+      setWallet(data.wallet)
+      setBalance(null)
+      setSummary(null)
+      setEmbedOpen(false)
+      setIsOpen(true)
+      void refresh(data.wallet.userHash)
+    }
+
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const refresh = async (userHash?: string) => {
+    const hash = String(userHash || wallet?.userHash || '').trim()
+    if (!hash) return
     try {
       setError('')
-      const [bal, sum] = await Promise.all([fetchCreditBalance(wallet.userHash), fetchCreditSummary(wallet.userHash)])
+      const [bal, sum] = await Promise.all([fetchCreditBalance(hash), fetchCreditSummary(hash)])
       const b = Number(bal?.data?.balance ?? bal?.data?.balance ?? bal?.balance ?? 0)
       const s = sum?.data as SummaryData
       setBalance(Number.isFinite(b) ? b : 0)
       setSummary(s || null)
     } catch (e: any) {
-      setError(e?.message || '加载失败')
+      setError(formatError(e))
     }
   }
 
   useEffect(() => {
     if (!isOpen) return
     if (!wallet) return
-    refresh()
-    const t = setInterval(refresh, 30000)
+    refresh(wallet.userHash)
+    const t = setInterval(() => refresh(wallet.userHash), 30000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, wallet?.userHash])
 
-  const handleBind = async () => {
+const handleBind = async () => {
     setLoading(true)
     setError('')
     try {
-      const w = wallet || (await createCreditWallet())
-      await registerCreditWallet({ userHash: w.userHash, userSecret: w.userSecret })
-      saveCreditWallet(w)
-      setWallet(w)
-      await refresh()
+      setEmbedOpen(true)
     } catch (e: any) {
       setError(e?.message || '绑定失败')
     } finally {
@@ -72,14 +100,22 @@ export default function CreditWalletPanel() {
     return review + like
   }, [summary])
 
+  const logout = () => {
+    clearCreditWallet()
+    setWallet(null)
+    setBalance(null)
+    setSummary(null)
+    setError('')
+    setEmbedOpen(false)
+    setIsOpen(true)
+  }
+
   const icon = (
     <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M17 9V7a5 5 0 00-10 0v2M5 9h14l-1 12H6L5 9z"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c2.21 0 4-1.12 4-2.5S14.21 3 12 3 8 4.12 8 5.5 9.79 8 12 8z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 10c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 14c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" />
     </svg>
   )
 
@@ -104,7 +140,7 @@ export default function CreditWalletPanel() {
         {!wallet ? (
           <div className="mt-4 space-y-3">
             <div className="text-sm text-slate-600 leading-relaxed">
-              绑定后可自动领取积分：50 字以上点评 +5；收到点赞每日 0 点结算（可撤销）。
+              请使用积分站完成注册/绑定（注册与须知流程与积分站保持一致）。绑定后：50 字以上点评 +5；收到点赞每日 0 点结算（可撤销）。
             </div>
             <button
               type="button"
@@ -112,8 +148,27 @@ export default function CreditWalletPanel() {
               disabled={loading}
               className="w-full py-2.5 rounded-2xl bg-slate-800 text-white font-extrabold hover:bg-slate-700 disabled:opacity-60"
             >
-              {loading ? '处理中...' : '一键创建 / 绑定钱包'}
+              {loading ? '处理中...' : '打开积分站注册 / 绑定钱包'}
             </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
+                href="https://credit.yourtj.de"
+                target="_blank"
+                rel="noreferrer"
+              >
+                访问积分站
+              </a>
+              <a
+                className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
+                href="https://credit.yourtj.de/#/dashboard/history"
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看流水
+              </a>
+            </div>
           </div>
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-3">
@@ -144,10 +199,40 @@ export default function CreditWalletPanel() {
             </div>
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => refresh(wallet.userHash)}
               className="rounded-xl bg-white border border-slate-200 p-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
             >
               刷新
+            </button>
+          </div>
+        )}
+
+        {wallet && (
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
+                href="https://credit.yourtj.de/#/dashboard/marketplace"
+                target="_blank"
+                rel="noreferrer"
+              >
+                广场交易积分
+              </a>
+              <a
+                className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
+                href="https://credit.yourtj.de/#/dashboard/history"
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看流水
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full py-2.5 rounded-2xl bg-white border border-rose-200 text-rose-700 font-extrabold text-center hover:bg-rose-50"
+            >
+              退出登录
             </button>
           </div>
         )}
@@ -180,8 +265,28 @@ export default function CreditWalletPanel() {
 
   return (
     <>
-      {/* Desktop: left floating panel */}
-      <div className="hidden md:block fixed left-6 top-24 z-40">
+      {embedOpen && (
+        <>
+          <div className="fixed inset-0 z-[90] bg-black/35 backdrop-blur-sm" onClick={() => setEmbedOpen(false)} />
+          <div className="fixed inset-x-4 top-10 bottom-10 z-[100] rounded-3xl bg-white shadow-2xl border border-white/60 overflow-hidden">
+            <div className="h-12 px-4 flex items-center justify-between border-b border-slate-200 bg-white">
+              <div className="text-sm font-extrabold text-slate-800">YOURTJ 社区积分站 - 注册/绑定</div>
+              <button
+                type="button"
+                className="w-9 h-9 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                onClick={() => setEmbedOpen(false)}
+                aria-label="关闭"
+              >
+                x
+              </button>
+            </div>
+            <iframe title="YOURTJ Credit" src="https://credit.yourtj.de/#/" className="w-full h-[calc(100%-3rem)] bg-white" />
+          </div>
+        </>
+      )}
+
+      {/* Desktop: right floating panel (stack under filter) */}
+      <div className="hidden md:block fixed right-6 top-44 z-40">
         <div
           className={`bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl rounded-2xl transition-all duration-300 ${
             isOpen ? 'w-[380px]' : 'w-14'
@@ -205,7 +310,7 @@ export default function CreditWalletPanel() {
       </div>
 
       {/* Mobile: floating button + bottom sheet */}
-      <div className="md:hidden fixed left-4 bottom-24 z-50">
+      <div className="md:hidden fixed right-4 bottom-40 z-50">
         <button
           type="button"
           onClick={() => setIsOpen(true)}

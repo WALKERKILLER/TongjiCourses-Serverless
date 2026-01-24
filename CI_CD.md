@@ -15,6 +15,7 @@
 - `VITE_TURNSTILE_SITE_KEY`：如果你仍然使用 Turnstile，可以填站点 Key（不需要的话也可以填任意占位字符串）
 - `VITE_CAPTCHA_URL`：TongjiCaptcha 服务的 URL（例如 `https://captcha.xxx.com`）
 - `VITE_WALINE_SERVER_URL`：Waline 服务端地址（例如 `https://waline.xxx.com`）
+- `VITE_CREDIT_API_BASE`：YOURTJ 社区积分站后端 Core API Base（建议 `https://core.credit.yourtj.de`）
 
 ## 2) Cloudflare API Token 推荐权限
 
@@ -32,6 +33,8 @@
 
 - `CAPTCHA_SITEVERIFY_URL`
 - `ADMIN_SECRET`
+- `CREDIT_API_BASE`：积分站 Core API Base（建议 `https://core.credit.yourtj.de`；不要填 `https://credit.yourtj.de`）
+- `CREDIT_JCOURSE_SECRET`：积分站为选课站分配的密钥（用于积分事件上报）
 
 本地可用：
 
@@ -44,3 +47,12 @@ wrangler secret put ADMIN_SECRET
 ## 4) 工作流文件位置
 
 - `.github/workflows/deploy-cloudflare.yml`
+
+## 5) 自定义域名（xk.yourtj.de）为什么没更新？
+
+GitHub Actions 里 `wrangler pages deploy` 打印出来的 `*.pages.dev` 只是 Pages 的默认访问地址。
+要让生产域名 `https://xk.yourtj.de` 指向本仓库的 Pages 项目，需要在 Cloudflare 侧绑定域名：
+
+1) Cloudflare Pages -> 项目 `jcourse-web` -> Custom domains：添加 `xk.yourtj.de`
+2) Cloudflare DNS：把 `xk` 的记录指向本 Pages 项目（常见做法是 `CNAME xk -> jcourse-web.pages.dev`）
+3) 如果 `xk.yourtj.de` 之前绑定在别的 Pages 项目上，需要先在旧项目里移除该域名，否则新项目无法添加
