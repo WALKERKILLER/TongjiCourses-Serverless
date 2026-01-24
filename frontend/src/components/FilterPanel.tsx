@@ -233,6 +233,23 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
         </button>
       </div>
 
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={resetAndApply}
+          className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-50"
+        >
+          重置
+        </button>
+        <button
+          type="button"
+          onClick={apply}
+          className="py-2.5 rounded-2xl bg-slate-800 text-white font-bold hover:bg-slate-700"
+        >
+          应用
+        </button>
+      </div>
+
       <div className="rounded-2xl border border-slate-200 bg-white/70 p-3">
         <div className="text-sm font-extrabold text-slate-800 mb-2">检索条件</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -387,22 +404,6 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={resetAndApply}
-          className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-50"
-        >
-          重置
-        </button>
-        <button
-          type="button"
-          onClick={apply}
-          className="py-2.5 rounded-2xl bg-slate-800 text-white font-bold hover:bg-slate-700"
-        >
-          应用
-        </button>
-      </div>
     </div>
   )
 

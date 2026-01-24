@@ -16,12 +16,13 @@ export default function App() {
   const location = useLocation()
   const isSchedule = location.pathname.startsWith('/schedule')
   const hideFloatingTools = isSchedule || location.pathname.startsWith('/feedback')
+  const isHome = location.pathname === '/'
 
   return (
     <div className="min-h-screen text-slate-800 flex flex-col">
       <Navbar />
       <main
-        className={`${isSchedule ? 'max-w-none px-4 mt-4' : 'max-w-7xl px-4 mt-6 md:mt-8'} mx-auto flex-1 w-full pb-20 md:pb-0`}
+        className={`${isSchedule ? 'max-w-none px-4 mt-4' : 'max-w-7xl px-4 mt-6 md:mt-8'} mx-auto flex-1 w-full ${isHome ? 'pb-12' : 'pb-20'} md:pb-0`}
       >
         <Routes>
           <Route path="/" element={<Courses />} />

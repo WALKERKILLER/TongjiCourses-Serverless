@@ -51,6 +51,8 @@ export default function Courses() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [jumpOpen, setJumpOpen] = useState(false)
+  const [jumpValue, setJumpValue] = useState('')
   const [departments, setDepartments] = useState<string[]>([])
   const [filters, setFilters] = useState<FilterState>({
     selectedDepartments: [],
@@ -66,6 +68,7 @@ export default function Courses() {
     setLoading(true)
     setError('')
     try {
+      setJumpOpen(false)
       const data = await fetchCourses(keyword, undefined, p, 20, {
         departments: filters.selectedDepartments,
         onlyWithReviews: filters.onlyWithReviews,
@@ -87,6 +90,14 @@ export default function Courses() {
       setLoading(false)
       setIsSearching(false) // 重置搜索状态
     }
+  }
+
+  const applyJump = () => {
+    const v = Number(jumpValue)
+    if (!Number.isFinite(v)) return
+    const p = Math.max(1, Math.min(totalPages || 1, Math.trunc(v)))
+    if (p !== page) search(undefined, p)
+    setJumpOpen(false)
   }
 
   // 加载开课单位列表
@@ -431,7 +442,7 @@ export default function Courses() {
 
           {/* 分页控件 */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 pt-4">
+            <div className="flex justify-center items-center gap-2 pt-2">
               <button
                 onClick={() => search(undefined, page - 1)}
                 disabled={page <= 1 || loading}
@@ -439,9 +450,39 @@ export default function Courses() {
               >
                 上一页
               </button>
-              <span className="px-4 py-2 text-slate-600">
-                {page} / {totalPages}
-              </span>
+              <div className="flex items-center gap-2 text-slate-600">
+                {jumpOpen ? (
+                  <input
+                    value={jumpValue}
+                    onChange={(e) => setJumpValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') applyJump()
+                      if (e.key === 'Escape') setJumpOpen(false)
+                    }}
+                    onBlur={() => setJumpOpen(false)}
+                    inputMode="numeric"
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-center font-semibold outline-none focus:ring-2 focus:ring-cyan-500"
+                    placeholder={String(page)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setJumpValue(String(page))
+                      setJumpOpen(true)
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-center font-bold hover:bg-slate-50"
+                    title="跳转到指定页码"
+                  >
+                    {page}
+                  </button>
+                )}
+                <span className="font-semibold">/</span>
+                <span className="font-semibold">{totalPages}</span>
+              </div>
               <button
                 onClick={() => search(undefined, page + 1)}
                 disabled={page >= totalPages || loading}
