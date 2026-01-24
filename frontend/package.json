@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "dev:local": "vite --host 127.0.0.1 --port 5173",
+    "dev:lan": "vite --host 0.0.0.0 --port 5173",
+    "dev:with-sim": "npm run build:scheduler && vite",
+    "build:scheduler": "npm --prefix ../scheduler run build",
+    "build": "npm run build:scheduler && tsc && vite build",
     "preview": "vite preview",
     "deploy": "wrangler pages deploy dist --project-name jcourse-web"
   },

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 // TongjiCaptcha 服务地址（使用国内可访问的域名）
 const CAPTCHA_API_BASE = import.meta.env.VITE_CAPTCHA_URL || 'https://captcha.07211024.xyz'
@@ -82,6 +83,17 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
     else setSelected(s => [...s, idx])
   }
 
+  useEffect(() => {
+    if (!isOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.body.classList.add('captcha-modal-open')
+    return () => {
+      document.body.style.overflow = prev
+      document.body.classList.remove('captcha-modal-open')
+    }
+  }, [isOpen])
+
   return (
     <>
       {/* 触发器按钮 */}
@@ -107,9 +119,16 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
       </div>
 
       {/* 弹窗 Modal */}
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-[360px] w-full mx-4 overflow-hidden">
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          {/* Soft full-page blur backdrop */}
+          <div
+            className="absolute inset-0 bg-slate-900/10"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/20 via-white/5 to-black/10" />
+
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-[360px] w-full mx-4 overflow-hidden">
             {data ? (
               <>
                 {/* 题目头部 */}
@@ -197,10 +216,8 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
               <div className="p-10 text-center text-slate-500">加载中...</div>
             )}
           </div>
-          {/* 点击背景关闭 */}
-          <div className="absolute inset-0 -z-10" onClick={() => setIsOpen(false)} />
         </div>
-      )}
+      , document.body)}
     </>
   )
 }

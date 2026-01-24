@@ -13,6 +13,17 @@ build/
 .env.local
 .env.production
 .dev.vars
+backend/config.ini
+backend/config.local.ini
+backend/config.onesystem.ini
+backend/src/config.onesystem.ini
+
+# Scheduler (pk) build output (generated)
+frontend/public/sim/
+frontend/public/sim-assets/
+
+# Scheduler deps
+scheduler/node_modules/
 
 # Logs
 *.log
@@ -36,3 +47,7 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
+
+# Python
+__pycache__/
+*.pyc

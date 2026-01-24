@@ -12,6 +12,18 @@ body {
   color: #1e293b;
 }
 
+/* Captcha modal: blur the whole app (everything except the modal itself, which is portaled to body) */
+body.captcha-modal-open #root {
+  filter: blur(12px) saturate(1.05);
+  transform: scale(1.01);
+  transition: filter 180ms ease, transform 180ms ease;
+  will-change: filter, transform;
+}
+
+body:not(.captcha-modal-open) #root {
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
 a {
   color: #0ea5e9;
   text-decoration: none;

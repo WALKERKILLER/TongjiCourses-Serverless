@@ -1,0 +1,96 @@
+﻿name: Sync Onesystem (Cookie) To D1
+
+on:
+  workflow_dispatch:
+    inputs:
+      calendarId:
+        description: "一系统学期ID (例如 121)"
+        required: true
+        type: string
+      depth:
+        description: "同步深度 (从 calendarId 往前同步多少学期，默认 1)"
+        required: false
+        default: "1"
+        type: string
+  # 便于在 dev 分支上“测试到可用”为止：通过 push 触发（需要提交信息包含 [pk-sync]）
+  push:
+    branches: ["dev"]
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[pk-sync-cookie]'))
+    steps:
+      - name: Resolve calendarId/depth
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "calendarId=${{ inputs.calendarId }}" >> "$GITHUB_OUTPUT"
+            echo "depth=${{ inputs.depth }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          msg="${{ github.event.head_commit.message }}"
+          calendarId="$(echo "$msg" | sed -nE 's/.*calendarId=([0-9]+).*/\1/p' | head -n1)"
+          depth="$(echo "$msg" | sed -nE 's/.*depth=([0-9]+).*/\1/p' | head -n1)"
+
+          if [ -z "$calendarId" ]; then
+            echo "Missing calendarId in commit message. Example: [pk-sync-cookie] calendarId=121 depth=1" >&2
+            exit 1
+          fi
+
+          if [ -z "$depth" ]; then depth="1"; fi
+          echo "calendarId=$calendarId" >> "$GITHUB_OUTPUT"
+          echo "depth=$depth" >> "$GITHUB_OUTPUT"
+
+      - name: Validate inputs
+        run: |
+          echo "calendarId=${{ steps.resolve.outputs.calendarId }}"
+          echo "depth=${{ steps.resolve.outputs.depth }}"
+
+      - name: Trigger backend sync
+        env:
+          # Prefer BACKEND_URL (explicit backend base), fallback to VITE_API_URL (frontend uses it as API base)
+          BACKEND_URL: ${{ (github.ref_name == 'dev' && secrets.BACKEND_URL_DEV) || secrets.BACKEND_URL || secrets.VITE_API_URL }}
+          ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
+          ONESYSTEM_COOKIE: ${{ secrets.ONESYSTEM_COOKIE }}
+          CALENDAR_ID: ${{ steps.resolve.outputs.calendarId }}
+          DEPTH: ${{ steps.resolve.outputs.depth }}
+        run: |
+          set -euo pipefail
+          BACKEND_URL="${BACKEND_URL%/}"
+          if [[ "$BACKEND_URL" == */api ]]; then BACKEND_URL="${BACKEND_URL%/api}"; fi
+
+          if [ -z "$BACKEND_URL" ]; then
+            echo "Missing secrets.BACKEND_URL (or secrets.VITE_API_URL) (backend base url)" >&2
+            exit 1
+          fi
+          if [ -z "$ADMIN_SECRET" ]; then
+            echo "Missing secrets.JCOURSE_ADMIN_SECRET (x-admin-secret)" >&2
+            exit 1
+          fi
+
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X OPTIONS "$BACKEND_URL/api/admin/pk/sync" || true)"
+          if [ "$code" = "404" ]; then
+            echo "Backend endpoint not found: $BACKEND_URL/api/admin/pk/sync" >&2
+            echo "This usually means the backend Worker at BACKEND_URL is not deployed with pk sync route yet (or BACKEND_URL points to frontend Pages)." >&2
+            exit 1
+          fi
+
+          payload=$(python3 -c 'import json, os; payload={"calendarId": int(os.environ["CALENDAR_ID"]), "depth": int(os.environ.get("DEPTH", "1"))}; cookie=os.environ.get("ONESYSTEM_COOKIE","").strip(); payload.update({"onesystemCookie": cookie} if cookie else {}); print(json.dumps(payload, ensure_ascii=False))')
+
+          curl -sS -X POST "$BACKEND_URL/api/admin/pk/sync" \
+            -H "Content-Type: application/json" \
+            -H "x-admin-secret: $ADMIN_SECRET" \
+            --data "$payload" \
+            | tee sync-result.json
+
+          python3 -c 'import json,sys; data=json.load(open("sync-result.json","r",encoding="utf-8")); ok=bool(data.get("success")); print("success=",ok,"calendarIds=",data.get("calendarIds"),"teachingClassInserted=",data.get("teachingClassInserted")); sys.exit(0 if ok else 1)'

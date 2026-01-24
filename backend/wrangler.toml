@@ -7,6 +7,15 @@ binding = "DB"
 database_name = "jcourse-db"
 database_id = "ced26cfd-a3a7-4b06-ac3f-587c9c939c1c"
 
+[env.dev]
+name = "jcourse-backend-dev"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "jcourse-db"
+database_id = "ced26cfd-a3a7-4b06-ac3f-587c9c939c1c"
+
 # 环境变量需要通过 wrangler secret 设置:
 # wrangler secret put CAPTCHA_SITEVERIFY_URL
 # wrangler secret put ADMIN_SECRET
+# wrangler secret put ONESYSTEM_COOKIE

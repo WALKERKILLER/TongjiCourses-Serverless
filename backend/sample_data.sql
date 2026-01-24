@@ -7,13 +7,13 @@ INSERT INTO teachers (id, tid, name, title, department) VALUES
 (5, 'T005', '陈明', '副教授', '电子信息工程系');
 
 -- 插入模拟课程数据
-INSERT INTO courses (id, code, name, credit, department, main_teacher_id, review_count, review_avg, search_keywords) VALUES
-(1, 'CS101', '计算机程序设计', 3.0, '计算机科学与技术系', 1, 5, 4.6, 'CS101 计算机程序设计 张伟 编程 C语言'),
-(2, 'CS201', '数据结构与算法', 4.0, '计算机科学与技术系', 1, 4, 4.8, 'CS201 数据结构与算法 张伟 算法 数据结构'),
-(3, 'SE301', '软件工程', 3.0, '软件学院', 2, 3, 4.3, 'SE301 软件工程 李娜 项目管理 敏捷开发'),
-(4, 'MATH201', '高等数学A', 5.0, '数学系', 3, 6, 4.0, 'MATH201 高等数学A 王强 微积分 数学分析'),
-(5, 'PHY101', '大学物理', 4.0, '物理系', 4, 4, 4.5, 'PHY101 大学物理 刘芳 力学 电磁学'),
-(6, 'EE202', '数字电路', 3.5, '电子信息工程系', 5, 2, 4.0, 'EE202 数字电路 陈明 逻辑门 FPGA');
+INSERT INTO courses (id, code, name, credit, department, teacher_id, review_count, review_avg, search_keywords, is_legacy, is_icu) VALUES
+(1, 'CS101', '计算机程序设计', 3.0, '计算机科学与技术系', 1, 5, 4.6, 'CS101 计算机程序设计 张伟 编程 C语言', 0, 0),
+(2, 'CS201', '数据结构与算法', 4.0, '计算机科学与技术系', 1, 4, 4.8, 'CS201 数据结构与算法 张伟 算法 数据结构', 0, 0),
+(3, 'SE301', '软件工程', 3.0, '软件学院', 2, 3, 4.3, 'SE301 软件工程 李娜 项目管理 敏捷开发', 0, 0),
+(4, 'MATH201', '高等数学A', 5.0, '数学系', 3, 6, 4.0, 'MATH201 高等数学A 王强 微积分 数学分析', 0, 0),
+(5, 'PHY101', '大学物理', 4.0, '物理系', 4, 4, 4.5, 'PHY101 大学物理 刘芳 力学 电磁学', 0, 0),
+(6, 'EE202', '数字电路', 3.5, '电子信息工程系', 5, 2, 4.0, 'EE202 数字电路 陈明 逻辑门 FPGA', 0, 0);
 
 -- 插入模拟评论数据
 INSERT INTO reviews (course_id, semester, rating, comment, created_at, is_hidden) VALUES

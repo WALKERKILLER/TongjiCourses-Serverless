@@ -1,0 +1,45 @@
+name: Deploy Backend (Dev)
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-backend-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm install
+
+      - name: Ensure backend secrets (env.dev)
+        run: |
+          set -euo pipefail
+          if [ -z "$ADMIN_SECRET" ]; then
+            echo "Missing secrets.JCOURSE_ADMIN_SECRET (used as backend ADMIN_SECRET)" >&2
+            exit 1
+          fi
+          echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET --env dev
+
+      - name: Deploy Worker (env.dev)
+        run: npm run deploy -- --env dev

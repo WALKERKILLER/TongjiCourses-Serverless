@@ -1,0 +1,115 @@
+name: Deploy Dev (Cloudflare)
+
+on:
+  push:
+    branches: ["dev"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "scheduler/**"
+      - ".github/workflows/deploy-dev-cloudflare.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      scheduler: ${{ steps.filter.outputs.scheduler }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - "backend/**"
+            frontend:
+              - "frontend/**"
+            scheduler:
+              - "scheduler/**"
+
+  deploy-backend-dev:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm install
+
+      - name: Ensure backend secrets (env.dev)
+        run: |
+          set -euo pipefail
+          if [ -z "$ADMIN_SECRET" ]; then
+            echo "Missing secrets.JCOURSE_ADMIN_SECRET (used as backend ADMIN_SECRET)" >&2
+            exit 1
+          fi
+          echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET --env dev
+
+      - name: Deploy Worker (env.dev)
+        run: npm run deploy -- --env dev
+
+  deploy-frontend-dev:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.scheduler == 'true'
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # dev 分支预览站点指向 dev 后端（Worker env.dev）
+      VITE_API_URL: ${{ secrets.BACKEND_URL_DEV }}
+      VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+      VITE_CAPTCHA_URL: ${{ secrets.VITE_CAPTCHA_URL }}
+      VITE_WALINE_SERVER_URL: ${{ secrets.VITE_WALINE_SERVER_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm install
+
+      - name: Install scheduler deps
+        working-directory: scheduler
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy Pages (preview branch=dev)
+        run: npx wrangler pages deploy dist --project-name jcourse-web --branch dev

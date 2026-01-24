@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { fetchCourse } from '../services/api'
+import { fetchCourse, likeReview, unlikeReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
 import Logo from '../components/Logo'
+import { getOrCreateClientId } from '../utils/clientId'
 
 interface Review {
   id: number
@@ -14,6 +15,8 @@ interface Review {
   created_at: number
   reviewer_name?: string
   reviewer_avatar?: string
+  like_count?: number
+  liked?: boolean
 }
 
 interface CourseData {
@@ -25,6 +28,7 @@ interface CourseData {
   teacher_name: string
   review_avg: number
   review_count: number
+  semesters?: string[]
   reviews: Review[]
 }
 
@@ -32,13 +36,57 @@ export default function Course() {
   const { id } = useParams()
   const [course, setCourse] = useState<CourseData | null>(null)
   const [displayCount, setDisplayCount] = useState(20) // 初始显示20条评论
+  const clientId = useMemo(() => getOrCreateClientId(), [])
 
   useEffect(() => {
-    if (id) fetchCourse(id).then(setCourse)
-  }, [id])
+    if (id) fetchCourse(id, { clientId }).then(setCourse)
+  }, [id, clientId])
 
   const handleLoadMore = () => {
     setDisplayCount(prev => prev + 20)
+  }
+
+  const toggleLike = async (reviewId: number) => {
+    if (!course) return
+    const reviews = course.reviews || []
+    const target = reviews.find((r) => r.id === reviewId)
+    if (!target) return
+
+    const nextLiked = !target.liked
+
+    // optimistic
+    setCourse((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        reviews: prev.reviews.map((r) =>
+          r.id === reviewId
+            ? { ...r, liked: nextLiked, like_count: Math.max(0, Number(r.like_count || 0) + (nextLiked ? 1 : -1)) }
+            : r
+        )
+      }
+    })
+
+    try {
+      const res = nextLiked ? await likeReview(reviewId, clientId) : await unlikeReview(reviewId, clientId)
+      const likeCount = Number(res?.like_count ?? 0)
+      setCourse((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          reviews: prev.reviews.map((r) => (r.id === reviewId ? { ...r, liked: nextLiked, like_count: likeCount } : r))
+        }
+      })
+    } catch (_e) {
+      // revert
+      setCourse((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          reviews: prev.reviews.map((r) => (r.id === reviewId ? { ...r, liked: !nextLiked } : r))
+        }
+      })
+    }
   }
 
   if (!course) return (
@@ -60,6 +108,18 @@ export default function Course() {
 
           <h2 className="text-2xl font-bold text-slate-800 mb-1">{course.name}</h2>
           <p className="text-slate-500 font-medium mb-6">{course.department}</p>
+          {Array.isArray(course.semesters) && course.semesters.length > 0 && (
+            <div className="mb-6 flex flex-wrap gap-2">
+              {course.semesters.map((s) => (
+                <span
+                  key={s}
+                  className="text-[11px] font-bold px-2.5 py-1.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200"
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-white">
@@ -156,15 +216,43 @@ export default function Course() {
                   <CollapsibleMarkdown content={review.comment} maxLength={300} />
                 </div>
 
-                {/* 评论唯一标识符 */}
-                {review.sqid && (
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleLike(review.id)}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-extrabold transition-colors ${
+                      review.liked
+                        ? 'bg-orange-50 border-orange-200 text-orange-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                    title={review.liked ? '撤销点赞' : '点赞'}
+                  >
+                    <svg
+                      className={`w-4 h-4 ${review.liked ? 'text-orange-600' : 'text-slate-400'}`}
+                      viewBox="0 0 24 24"
+                      fill={review.liked ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14 9l-3 3m0 0l-3-3m3 3V4m8 8a8 8 0 11-16 0 8 8 0 0116 0z"
+                      />
                     </svg>
-                    <span className="font-mono">{review.sqid}</span>
-                  </div>
-                )}
+                    <span>{Number(review.like_count || 0)}</span>
+                    <span className="text-[10px] font-black opacity-80">点赞</span>
+                  </button>
+
+                  {review.sqid && (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                      </svg>
+                      <span className="font-mono">{review.sqid}</span>
+                    </div>
+                  )}
+                </div>
               </GlassCard>
             ))}
 

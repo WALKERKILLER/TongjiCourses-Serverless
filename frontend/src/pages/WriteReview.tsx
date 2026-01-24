@@ -6,6 +6,7 @@ import MarkdownEditor from '../components/MarkdownEditor'
 import MarkdownToolbar from '../components/MarkdownToolbar'
 import TemplateSelector, { TEMPLATE_HINTS, TemplateHints } from '../components/TemplateSelector'
 import TongjiCaptchaWidget from '../components/TongjiCaptchaWidget'
+import { loadCreditWallet } from '../utils/creditWallet'
 
 const REVIEW_TEMPLATE = `## 考核方式：
 
@@ -138,6 +139,7 @@ export default function WriteReview() {
 
     setLoading(true)
     try {
+      const wallet = loadCreditWallet()
       const res = await submitReview({
         course_id: Number(id),
         rating,
@@ -145,7 +147,8 @@ export default function WriteReview() {
         semester: '',
         turnstile_token: token,
         reviewer_name: showReviewer ? reviewerName : '',
-        reviewer_avatar: getAvatarUrl()
+        reviewer_avatar: getAvatarUrl(),
+        walletUserHash: wallet?.userHash || ''
       })
       if (res.success) {
         alert('点评提交成功！')
@@ -164,6 +167,9 @@ export default function WriteReview() {
 
   if (!course) return <div className="text-center py-20 text-slate-500">加载中...</div>
 
+  const walletBound = !!loadCreditWallet()?.userHash
+  const reviewEligible = String(comment || '').trim().length >= 50
+
   return (
     <div className="max-w-4xl mx-auto pb-24 md:pb-6">
       <GlassCard hover={false}>
@@ -176,6 +182,25 @@ export default function WriteReview() {
             撰写评价
           </div>
           <h2 className="text-2xl font-bold text-slate-800">{course.code} - {course.name}</h2>
+        </div>
+
+        <div className={`mb-6 p-4 rounded-2xl border ${walletBound ? 'bg-emerald-50/70 border-emerald-100' : 'bg-amber-50/70 border-amber-100'}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-sm font-semibold text-slate-700 leading-relaxed">
+              {walletBound
+                ? `已绑定积分钱包：${reviewEligible ? '本次点评满足 50 字，将自动获得 +5 积分。' : '点评达到 50 字可获得 +5 积分。'}`
+                : '未绑定积分钱包：绑定后 50 字以上点评可自动 +5，收到点赞每日 0 点结算。'}
+            </div>
+            {!walletBound && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('open-credit-wallet'))}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-extrabold hover:bg-slate-700"
+              >
+                绑定钱包
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Rating - 移动端优化为紧凑两行布局 */}
