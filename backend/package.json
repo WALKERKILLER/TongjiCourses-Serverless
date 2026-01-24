@@ -13,6 +13,7 @@
     "pk:sync:login": "python ./scripts/pk-login-and-sync.py"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.0",
     "hono": "^4.0.0",
     "sqids": "^0.3.0"
   },

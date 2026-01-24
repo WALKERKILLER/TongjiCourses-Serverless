@@ -9,6 +9,8 @@ type Bindings = {
   CAPTCHA_SITEVERIFY_URL: string
   ADMIN_SECRET: string
   ONESYSTEM_COOKIE?: string
+  CREDIT_API_BASE?: string
+  CREDIT_JCOURSE_SECRET?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -63,6 +65,62 @@ async function ensureCourseAliasesTable(db: D1Database) {
     "CREATE TABLE IF NOT EXISTS course_aliases (system TEXT NOT NULL, alias TEXT NOT NULL, course_id INTEGER NOT NULL, created_at INTEGER DEFAULT (strftime('%s','now')), PRIMARY KEY (system, alias))"
   ).run()
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_course_aliases_course_id ON course_aliases(course_id)').run()
+}
+
+async function ensureReviewLikesTable(db: D1Database) {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS review_likes (
+        review_id INTEGER NOT NULL,
+        client_id TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        PRIMARY KEY (review_id, client_id),
+        FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+      )`
+    )
+    .run()
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_review_likes_review_id ON review_likes(review_id)').run()
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_review_likes_client_id ON review_likes(client_id)').run()
+}
+
+async function ensureReviewsWalletColumn(db: D1Database) {
+  try {
+    await db.prepare('ALTER TABLE reviews ADD COLUMN wallet_user_hash TEXT').run()
+  } catch {
+    // ignore: already exists
+  }
+}
+
+async function postCreditJcourseEvent(
+  env: Bindings,
+  payload: any
+): Promise<{ ok: boolean; skipped?: boolean; error?: string; status?: number }> {
+  const base = String(env.CREDIT_API_BASE || '').trim()
+  const secret = String(env.CREDIT_JCOURSE_SECRET || '').trim()
+  if (!base || !secret) return { ok: false, skipped: true, error: 'credit integration env not set' }
+
+  const url = `${base.replace(/\/$/, '')}/api/integration/jcourse/event`
+  const body = JSON.stringify(payload)
+
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-JCourse-Secret': secret
+        },
+        body
+      })
+      if (res.ok) return { ok: true }
+      const text = await res.text().catch(() => '')
+      return { ok: false, status: res.status, error: text || `HTTP ${res.status}` }
+    } catch (e: any) {
+      if (i === 1) return { ok: false, error: e?.message || 'network error' }
+    }
+  }
+
+  return { ok: false, error: 'unknown error' }
 }
 
 // 公开 API - 获取设置
@@ -312,11 +370,32 @@ app.get('/api/course/:id', async (c) => {
     let baseWhere = `course_id IN (${placeholders}) AND is_hidden = 0`
     if (!showIcu) baseWhere += ` AND is_icu = 0`
 
+    const clientId = (c.req.query('clientId') || '').trim()
+
     const reviews = await c.env.DB
       .prepare(`SELECT * FROM reviews WHERE ${baseWhere} ORDER BY created_at DESC`)
       .bind(...idList)
       .all()
-    const reviewsWithSqid = addSqidToReviews(reviews.results || [])
+
+    const rawReviews = (reviews.results || []) as any[]
+    const reviewIds = rawReviews.map((r) => Number(r?.id)).filter((n) => Number.isFinite(n))
+
+    let likedSet = new Set<number>()
+    if (clientId && reviewIds.length > 0) {
+      await ensureReviewLikesTable(c.env.DB)
+      const placeholders2 = reviewIds.map(() => '?').join(',')
+      const likedRows = await c.env.DB
+        .prepare(`SELECT review_id FROM review_likes WHERE client_id = ? AND review_id IN (${placeholders2})`)
+        .bind(clientId, ...reviewIds)
+        .all<{ review_id: number }>()
+      likedSet = new Set<number>((likedRows.results || []).map((r: any) => Number(r.review_id)))
+    }
+
+    const reviewsWithSqid = addSqidToReviews(rawReviews).map((r: any) => ({
+      ...r,
+      like_count: Number(r?.approve_count || 0),
+      liked: clientId ? likedSet.has(Number(r?.id)) : false
+    }))
 
     const countRow = await c.env.DB
       .prepare(`SELECT COUNT(*) as cnt FROM reviews WHERE ${baseWhere}`)
@@ -537,16 +616,21 @@ app.get('/api/course/by-code/:code', async (c) => {
 
 app.post('/api/review', async (c) => {
   const body = await c.req.json()
-  const { course_id, rating, comment, semester, turnstile_token, reviewer_name, reviewer_avatar } = body
+  const { course_id, rating, comment, semester, turnstile_token, reviewer_name, reviewer_avatar, walletUserHash, wallet_user_hash } = body
+  const walletHash = String(walletUserHash || wallet_user_hash || '').trim()
 
   // 使用 TongjiCaptcha 验证
   if (!(await verifyTongjiCaptcha(turnstile_token, c.env.CAPTCHA_SITEVERIFY_URL))) {
     return c.json({ error: '人机验证无效或已过期' }, 403)
   }
 
-  await c.env.DB.prepare(
-    `INSERT INTO reviews (course_id, rating, comment, semester, is_legacy, reviewer_name, reviewer_avatar) VALUES (?, ?, ?, ?, 0, ?, ?)`
-  ).bind(course_id, rating, comment, semester, reviewer_name || '', reviewer_avatar || '').run()
+  await ensureReviewsWalletColumn(c.env.DB)
+
+  const insert = await c.env.DB.prepare(
+    `INSERT INTO reviews (course_id, rating, comment, semester, is_legacy, reviewer_name, reviewer_avatar, wallet_user_hash) VALUES (?, ?, ?, ?, 0, ?, ?, ?)`
+  ).bind(course_id, rating, comment, semester, reviewer_name || '', reviewer_avatar || '', walletHash || null).run()
+
+  const reviewId = Number((insert as any)?.meta?.last_row_id || 0)
 
   // 更新课程统计（只统计非legacy且rating>0的评价）
   await c.env.DB.prepare(`
@@ -556,7 +640,105 @@ app.post('/api/review', async (c) => {
     WHERE id = ?
   `).bind(course_id, course_id, course_id).run()
 
-  return c.json({ success: true })
+  const creditRewardEligible = walletHash && /^[a-f0-9]{64}$/i.test(walletHash) && String(comment || '').trim().length >= 50
+  const creditReward = creditRewardEligible
+    ? await postCreditJcourseEvent(c.env, {
+        kind: 'review_reward',
+        eventId: `review:${reviewId || `${course_id}:${Date.now()}`}`,
+        userHash: walletHash,
+        amount: 5,
+        metadata: { reviewId, courseId: course_id }
+      })
+    : { ok: false, skipped: true, error: creditRewardEligible ? undefined : 'not eligible' }
+
+  return c.json({ success: true, reviewId, creditReward })
+})
+
+app.post('/api/review/:id/like', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isFinite(id)) return c.json({ error: 'Invalid review id' }, 400)
+
+  await ensureReviewLikesTable(c.env.DB)
+  await ensureReviewsWalletColumn(c.env.DB)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const clientId = String(body?.clientId || '').trim()
+  if (!clientId) return c.json({ error: 'Missing clientId' }, 400)
+
+  const existing = await c.env.DB
+    .prepare('SELECT 1 as x FROM review_likes WHERE review_id = ? AND client_id = ? LIMIT 1')
+    .bind(id, clientId)
+    .first<{ x: number }>()
+
+  if (!existing) {
+    await c.env.DB.prepare('INSERT INTO review_likes (review_id, client_id) VALUES (?, ?)').bind(id, clientId).run()
+    await c.env.DB.prepare('UPDATE reviews SET approve_count = approve_count + 1 WHERE id = ?').bind(id).run()
+  }
+
+  const review = await c.env.DB
+    .prepare('SELECT approve_count, wallet_user_hash FROM reviews WHERE id = ? LIMIT 1')
+    .bind(id)
+    .first<{ approve_count: number; wallet_user_hash?: string | null }>()
+  if (!review) return c.json({ error: 'Review not found' }, 404)
+
+  const walletHash = String(review.wallet_user_hash || '').trim()
+  let creditLike: any = { ok: false, skipped: true }
+  if (walletHash && /^[a-f0-9]{64}$/i.test(walletHash)) {
+    creditLike = await postCreditJcourseEvent(c.env, {
+      kind: 'like',
+      reviewId: String(id),
+      actorId: clientId,
+      targetUserHash: walletHash,
+      metadata: { reviewId: id }
+    })
+  }
+
+  return c.json({ success: true, liked: true, like_count: Number(review.approve_count || 0), creditLike })
+})
+
+app.delete('/api/review/:id/like', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isFinite(id)) return c.json({ error: 'Invalid review id' }, 400)
+
+  await ensureReviewLikesTable(c.env.DB)
+  await ensureReviewsWalletColumn(c.env.DB)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const clientId = String(body?.clientId || '').trim()
+  if (!clientId) return c.json({ error: 'Missing clientId' }, 400)
+
+  const existing = await c.env.DB
+    .prepare('SELECT 1 as x FROM review_likes WHERE review_id = ? AND client_id = ? LIMIT 1')
+    .bind(id, clientId)
+    .first<{ x: number }>()
+
+  if (existing) {
+    await c.env.DB.prepare('DELETE FROM review_likes WHERE review_id = ? AND client_id = ?').bind(id, clientId).run()
+    await c.env.DB
+      .prepare('UPDATE reviews SET approve_count = CASE WHEN approve_count > 0 THEN approve_count - 1 ELSE 0 END WHERE id = ?')
+      .bind(id)
+      .run()
+  }
+
+  const review = await c.env.DB
+    .prepare('SELECT approve_count, wallet_user_hash FROM reviews WHERE id = ? LIMIT 1')
+    .bind(id)
+    .first<{ approve_count: number; wallet_user_hash?: string | null }>()
+  if (!review) return c.json({ error: 'Review not found' }, 404)
+
+  const walletHash = String(review.wallet_user_hash || '').trim()
+  let creditLike: any = { ok: false, skipped: true }
+  if (walletHash && /^[a-f0-9]{64}$/i.test(walletHash)) {
+    creditLike = await postCreditJcourseEvent(c.env, {
+      kind: 'unlike',
+      reviewId: String(id),
+      actorId: clientId,
+      targetUserHash: walletHash,
+      metadata: { reviewId: id }
+    })
+  }
+
+  return c.json({ success: true, liked: false, like_count: Number(review.approve_count || 0), creditLike })
 })
 
 // 管理 API

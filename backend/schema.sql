@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS review_likes;
 DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS teachers;
 DROP TABLE IF EXISTS categories;
@@ -68,8 +69,20 @@ CREATE TABLE reviews (
     is_icu INTEGER DEFAULT 0,
     reviewer_name TEXT DEFAULT '',
     reviewer_avatar TEXT DEFAULT '',
+    wallet_user_hash TEXT,
     FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
+
+-- 点赞记录（用于 UI 与防刷；积分结算由 Credit(Turso) 侧负责）
+CREATE TABLE review_likes (
+    review_id INTEGER NOT NULL,
+    client_id TEXT NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    PRIMARY KEY (review_id, client_id),
+    FOREIGN KEY (review_id) REFERENCES reviews(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_review_likes_review_id ON review_likes(review_id);
+CREATE INDEX idx_review_likes_client_id ON review_likes(client_id);
 
 -- 设置表
 CREATE TABLE IF NOT EXISTS settings (

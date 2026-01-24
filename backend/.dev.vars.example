@@ -2,3 +2,6 @@ CAPTCHA_SITEVERIFY_URL=https://your-captcha-worker.your-subdomain.workers.dev
 ADMIN_SECRET=please-set-a-long-random-string
 ONESYSTEM_COOKIE=JWTUser=...; JSESSIONID=...; sessionid=...; ...
 
+# YourTJ Credit (Turso) - 积分联动（服务端）
+CREDIT_API_BASE=https://core.credit.yourtj.de
+CREDIT_JCOURSE_SECRET=please-set-a-long-random-string

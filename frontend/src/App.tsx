@@ -10,6 +10,7 @@ import About from './pages/About'
 import FAQ from './pages/FAQ'
 import Feedback from './pages/Feedback'
 import Schedule from './pages/Schedule'
+import CreditWalletPanel from './components/CreditWalletPanel'
 
 export default function App() {
   const location = useLocation()
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/feedback" element={<Feedback />} />
         </Routes>
       </main>
+      <CreditWalletPanel />
       <BottomNavigation />
       <Footer />
     </div>
