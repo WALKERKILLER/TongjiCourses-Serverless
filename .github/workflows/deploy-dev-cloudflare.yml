@@ -74,16 +74,16 @@ jobs:
             echo "Missing secrets.JCOURSE_ADMIN_SECRET (used as backend ADMIN_SECRET)" >&2
             exit 1
           fi
-          echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET --env dev
+          echo "$ADMIN_SECRET" | npx --yes wrangler@4 secret put ADMIN_SECRET --env dev
           if [ -n "${CREDIT_API_BASE:-}" ]; then
-            echo "$CREDIT_API_BASE" | npx wrangler secret put CREDIT_API_BASE --env dev
+            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE --env dev
           fi
           if [ -n "${CREDIT_JCOURSE_SECRET:-}" ]; then
-            echo "$CREDIT_JCOURSE_SECRET" | npx wrangler secret put CREDIT_JCOURSE_SECRET --env dev
+            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET --env dev
           fi
 
       - name: Deploy Worker (env.dev)
-        run: npm run deploy -- --env dev
+        run: npx --yes wrangler@4 deploy --env dev
 
   deploy-frontend-dev:
     runs-on: ubuntu-latest
@@ -121,4 +121,4 @@ jobs:
         run: npm run build
 
       - name: Deploy Pages (preview branch=dev)
-        run: npx wrangler pages deploy dist --project-name jcourse-web --branch dev
+        run: npx --yes wrangler@4 pages deploy dist --project-name jcourse-web --branch dev

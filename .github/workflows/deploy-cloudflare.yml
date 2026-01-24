@@ -85,14 +85,14 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${CREDIT_API_BASE:-}" ]; then
-            echo "$CREDIT_API_BASE" | npx wrangler secret put CREDIT_API_BASE
+            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE
           fi
           if [ -n "${CREDIT_JCOURSE_SECRET:-}" ]; then
-            echo "$CREDIT_JCOURSE_SECRET" | npx wrangler secret put CREDIT_JCOURSE_SECRET
+            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET
           fi
 
       - name: Deploy Worker
-        run: npm run deploy
+        run: npx --yes wrangler@4 deploy
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -129,4 +129,4 @@ jobs:
         run: npm run build
 
       - name: Deploy Pages
-        run: npm run deploy
+        run: npx --yes wrangler@4 pages deploy dist --project-name jcourse-web --branch main
