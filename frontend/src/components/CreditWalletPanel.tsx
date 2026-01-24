@@ -73,14 +73,14 @@ export default function CreditWalletPanel() {
     }
   }
 
+  // Background refresh: keep the badge (today estimated) reasonably up-to-date even when collapsed.
   useEffect(() => {
-    if (!isOpen) return
-    if (!wallet) return
+    if (!wallet?.userHash) return
     refresh(wallet.userHash)
     const t = setInterval(() => refresh(wallet.userHash), 30000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, wallet?.userHash])
+  }, [wallet?.userHash])
 
 const handleBind = async () => {
     setLoading(true)

@@ -160,6 +160,13 @@ export default function WriteReview() {
       } else {
         alert(res.error || '提交失败')
       }
+    } catch (e: any) {
+      const msg = String(e?.message || e || '提交失败')
+      alert(msg)
+      if (msg.includes('人机验证') || msg.toLowerCase().includes('captcha')) {
+        // 允许重新验证
+        setToken('')
+      }
     } finally {
       setLoading(false)
     }
@@ -369,7 +376,7 @@ export default function WriteReview() {
         {/* 人机验证 */}
         <div className="mb-6">
           <label className="block mb-3 text-sm font-semibold text-slate-600">人机验证</label>
-          <TongjiCaptchaWidget onVerify={setToken} />
+          <TongjiCaptchaWidget value={token} onVerify={setToken} />
         </div>
 
         {/* Submit Button */}

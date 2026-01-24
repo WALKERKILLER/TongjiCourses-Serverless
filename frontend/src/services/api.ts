@@ -77,7 +77,15 @@ export async function submitReview(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }, 15000)
-  if (!res.ok) throw new Error('Failed to submit review')
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    try {
+      const json = JSON.parse(text)
+      throw new Error(json?.error || json?.message || `提交失败 (HTTP ${res.status})`)
+    } catch {
+      throw new Error(text || `提交失败 (HTTP ${res.status})`)
+    }
+  }
   return res.json()
 }
 

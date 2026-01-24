@@ -5,10 +5,11 @@ import { createPortal } from 'react-dom'
 const CAPTCHA_API_BASE = import.meta.env.VITE_CAPTCHA_URL || 'https://captcha.07211024.xyz'
 
 interface Props {
+  value?: string
   onVerify: (token: string) => void
 }
 
-export default function TongjiCaptchaWidget({ onVerify }: Props) {
+export default function TongjiCaptchaWidget({ value, onVerify }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle')
   const [data, setData] = useState<{
@@ -21,7 +22,6 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const openModal = () => {
-    if (status === 'success') return
     setIsOpen(true)
     fetchCaptcha()
   }
@@ -94,6 +94,16 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
     }
   }, [isOpen])
 
+  // allow parent to reset (e.g., submit failed with captcha expired)
+  useEffect(() => {
+    if (value === undefined) return
+    if (String(value || '').trim()) return
+    setStatus('idle')
+    setData(null)
+    setSelected([])
+    setMessage(null)
+  }, [value])
+
   return (
     <>
       {/* 触发器按钮 */}
@@ -101,7 +111,7 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
         onClick={openModal}
         className={`border rounded-xl p-3 flex items-center cursor-pointer select-none transition-all ${
           status === 'success'
-            ? 'border-green-400 bg-green-50 cursor-default'
+            ? 'border-green-400 bg-green-50'
             : 'border-slate-200 bg-slate-50 hover:border-cyan-300 hover:bg-cyan-50'
         }`}
         style={{ width: '100%', maxWidth: '320px' }}
@@ -114,7 +124,7 @@ export default function TongjiCaptchaWidget({ onVerify }: Props) {
           {status === 'success' && <span className="text-white text-sm font-bold">✓</span>}
         </div>
         <span className="text-slate-700 text-sm">
-          {status === 'success' ? '人机验证通过' : '点击进行人机验证'}
+          {status === 'success' ? '人机验证通过（可点击重新验证）' : '点击进行人机验证'}
         </span>
       </div>
 
