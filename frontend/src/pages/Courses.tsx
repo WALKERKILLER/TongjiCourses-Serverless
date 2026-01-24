@@ -267,7 +267,7 @@ export default function Courses() {
                     src="/favicon.svg"
                     alt=""
                     className="md:hidden absolute top-1/2 -translate-y-1/2 w-4 h-4 drop-shadow"
-                    style={{ left: `calc(${Math.max(0, Math.min(100, legacyProgress))}% - 10px)` }}
+                    style={{ left: `calc(${Math.max(10, Math.min(100, legacyProgress))}% - 10px)` }}
                   />
                 </div>
               </div>
