@@ -25,8 +25,18 @@ export default function Courses() {
   const [loading, setLoading] = useState(false)
   const [isSearching, setIsSearching] = useState(false) // 用于区分用户主动搜索和自动加载
   const [error, setError] = useState('')
-  const openLegacyDocs = () => {
-    window.open('/wlc/', '_blank', 'noopener,noreferrer')
+  const [showLegacyDocs, setShowLegacyDocs] = useState(() => {
+    try {
+      return localStorage.getItem('yourtj_show_legacy_docs') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [legacyLoaded, setLegacyLoaded] = useState(false)
+  const legacyUrl = '/wlc/'
+
+  const openLegacyDocsInNewWindow = () => {
+    window.open(legacyUrl, '_blank', 'noopener,noreferrer')
   }
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -90,7 +100,14 @@ export default function Courses() {
     search(undefined, 1)
   }, [filters])
 
-  // 打开开关后一会再加载文档 iframe，避免一闪而过
+  useEffect(() => {
+    if (!showLegacyDocs) {
+      setLegacyLoaded(false)
+      return
+    }
+    setLegacyLoaded(false)
+  }, [showLegacyDocs])
+
   // 每次返回首页时刷新数据和开课单位列表
   useEffect(() => {
     if (location.pathname === '/') {
@@ -98,6 +115,18 @@ export default function Courses() {
       loadDepartments()
     }
   }, [location.key])
+
+  const toggleLegacyDocs = () => {
+    setShowLegacyDocs((v) => {
+      const nv = !v
+      try {
+        localStorage.setItem('yourtj_show_legacy_docs', nv ? '1' : '0')
+      } catch {
+        // ignore
+      }
+      return nv
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -146,7 +175,7 @@ export default function Courses() {
           <div className="mt-4 flex items-center gap-3">
             <button
               type="button"
-              onClick={openLegacyDocs}
+              onClick={toggleLegacyDocs}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-extrabold hover:bg-slate-50"
             >
               查询旧乌龙茶文档
@@ -157,6 +186,43 @@ export default function Courses() {
           </div>
         </div>
       </GlassCard>
+
+      {showLegacyDocs && (
+        <div className="bg-white border border-slate-200 shadow-[0_4px_20px_-4px_rgba(6,182,212,0.12)] rounded-3xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
+            <div className="text-sm font-extrabold text-slate-800">旧乌龙茶文档</div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={openLegacyDocsInNewWindow}
+                className="text-xs md:text-sm font-semibold text-cyan-700 hover:text-cyan-800 underline underline-offset-4 whitespace-nowrap"
+              >
+                新窗口打开
+              </button>
+              <button
+                type="button"
+                onClick={toggleLegacyDocs}
+                className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-extrabold hover:bg-slate-50"
+              >
+                收起
+              </button>
+            </div>
+          </div>
+          <div className="relative w-full bg-white">
+            {!legacyLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
+                正在加载文档…
+              </div>
+            )}
+            <iframe
+              title="乌龙茶课程评价文档"
+              src={legacyUrl}
+              className="w-full h-[calc(100vh-220px)] md:h-[calc(100vh-240px)] bg-white"
+              onLoad={() => setLegacyLoaded(true)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Loading State */}
       {loading && (
