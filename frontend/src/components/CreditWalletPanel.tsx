@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadCreditWallet, saveCreditWallet } from '../utils/creditWallet'
+import { clearCreditWallet, loadCreditWallet, saveCreditWallet } from '../utils/creditWallet'
 import { fetchCreditBalance, fetchCreditSummary } from '../services/credit'
 
 type SummaryData = {
@@ -22,6 +22,14 @@ export default function CreditWalletPanel() {
   const [error, setError] = useState<string>('')
   const [embedOpen, setEmbedOpen] = useState(false)
 
+  const formatError = (e: any) => {
+    const msg = String(e?.message || e || '加载失败')
+    if (/Unexpected token\s*['"]?</i.test(msg) || /<!doctype/i.test(msg) || /text\/html/i.test(msg)) {
+      return '积分站接口返回了 HTML（疑似 API Base 配置不正确）。请把 VITE_CREDIT_API_BASE 配置为 https://core.credit.yourtj.de'
+    }
+    return msg
+  }
+
   useEffect(() => {
     const onOpen = () => setIsOpen(true)
     window.addEventListener('open-credit-wallet', onOpen as any)
@@ -38,9 +46,11 @@ export default function CreditWalletPanel() {
 
       saveCreditWallet(data.wallet)
       setWallet(data.wallet)
+      setBalance(null)
+      setSummary(null)
       setEmbedOpen(false)
       setIsOpen(true)
-      void refresh()
+      void refresh(data.wallet.userHash)
     }
 
     window.addEventListener('message', onMessage)
@@ -48,25 +58,26 @@ export default function CreditWalletPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const refresh = async () => {
-    if (!wallet) return
+  const refresh = async (userHash?: string) => {
+    const hash = String(userHash || wallet?.userHash || '').trim()
+    if (!hash) return
     try {
       setError('')
-      const [bal, sum] = await Promise.all([fetchCreditBalance(wallet.userHash), fetchCreditSummary(wallet.userHash)])
+      const [bal, sum] = await Promise.all([fetchCreditBalance(hash), fetchCreditSummary(hash)])
       const b = Number(bal?.data?.balance ?? bal?.data?.balance ?? bal?.balance ?? 0)
       const s = sum?.data as SummaryData
       setBalance(Number.isFinite(b) ? b : 0)
       setSummary(s || null)
     } catch (e: any) {
-      setError(e?.message || '加载失败')
+      setError(formatError(e))
     }
   }
 
   useEffect(() => {
     if (!isOpen) return
     if (!wallet) return
-    refresh()
-    const t = setInterval(refresh, 30000)
+    refresh(wallet.userHash)
+    const t = setInterval(() => refresh(wallet.userHash), 30000)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, wallet?.userHash])
@@ -88,6 +99,16 @@ const handleBind = async () => {
     const like = Number(summary?.today?.likePendingDelta || 0)
     return review + like
   }, [summary])
+
+  const logout = () => {
+    clearCreditWallet()
+    setWallet(null)
+    setBalance(null)
+    setSummary(null)
+    setError('')
+    setEmbedOpen(false)
+    setIsOpen(true)
+  }
 
   const icon = (
     <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,7 +199,7 @@ const handleBind = async () => {
             </div>
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => refresh(wallet.userHash)}
               className="rounded-xl bg-white border border-slate-200 p-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
             >
               刷新
@@ -187,23 +208,32 @@ const handleBind = async () => {
         )}
 
         {wallet && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <a
-              className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
-              href="https://credit.yourtj.de/#/dashboard/marketplace"
-              target="_blank"
-              rel="noreferrer"
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
+                href="https://credit.yourtj.de/#/dashboard/marketplace"
+                target="_blank"
+                rel="noreferrer"
+              >
+                广场交易积分
+              </a>
+              <a
+                className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
+                href="https://credit.yourtj.de/#/dashboard/history"
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看流水
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full py-2.5 rounded-2xl bg-white border border-rose-200 text-rose-700 font-extrabold text-center hover:bg-rose-50"
             >
-              广场交易积分
-            </a>
-            <a
-              className="py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-700 font-extrabold text-center hover:bg-slate-50"
-              href="https://credit.yourtj.de/#/dashboard/history"
-              target="_blank"
-              rel="noreferrer"
-            >
-              查看流水
-            </a>
+              退出登录
+            </button>
           </div>
         )}
 

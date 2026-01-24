@@ -15,6 +15,7 @@ import CreditWalletPanel from './components/CreditWalletPanel'
 export default function App() {
   const location = useLocation()
   const isSchedule = location.pathname.startsWith('/schedule')
+  const hideFloatingTools = isSchedule || location.pathname.startsWith('/feedback')
 
   return (
     <div className="min-h-screen text-slate-800 flex flex-col">
@@ -33,7 +34,7 @@ export default function App() {
           <Route path="/feedback" element={<Feedback />} />
         </Routes>
       </main>
-      <CreditWalletPanel />
+      {!hideFloatingTools && <CreditWalletPanel />}
       <BottomNavigation />
       <Footer />
     </div>
