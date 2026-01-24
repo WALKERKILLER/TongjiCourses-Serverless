@@ -29,6 +29,23 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
   const [campusPickerOpen, setCampusPickerOpen] = useState(false)
   const [campusSearch, setCampusSearch] = useState('')
 
+  const openPanel = () => {
+    window.dispatchEvent(new CustomEvent('yourtj-floating-open', { detail: { panel: 'filter' } }))
+    setIsOpen(true)
+  }
+
+  useEffect(() => {
+    const onOtherOpen = (e: any) => {
+      const panel = String(e?.detail?.panel || '')
+      if (panel === 'wallet') {
+        setIsOpen(false)
+        setCampusPickerOpen(false)
+      }
+    }
+    window.addEventListener('yourtj-floating-open', onOtherOpen as any)
+    return () => window.removeEventListener('yourtj-floating-open', onOtherOpen as any)
+  }, [])
+
   useEffect(() => {
     setDraft(value)
   }, [value])
@@ -398,7 +415,7 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
         >
           <button
             type="button"
-            onClick={() => setIsOpen((v) => !v)}
+            onClick={() => (isOpen ? setIsOpen(false) : openPanel())}
             className="relative w-full p-3 flex items-center justify-center hover:bg-slate-50 rounded-2xl transition-colors"
             title={isOpen ? '收起筛选' : '展开筛选'}
           >
@@ -417,7 +434,7 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
       <div className="md:hidden fixed right-4 bottom-24 z-50">
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={openPanel}
           className="relative w-14 h-14 rounded-2xl bg-white/90 backdrop-blur-xl border border-white/50 shadow-xl flex items-center justify-center active:scale-95 transition-transform"
           aria-label="打开筛选"
         >
