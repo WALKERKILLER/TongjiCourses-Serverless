@@ -113,7 +113,8 @@ async function postCreditJcourseEvent(
 ): Promise<{ ok: boolean; skipped?: boolean; error?: string; status?: number }> {
   const baseRaw = String(env.CREDIT_API_BASE || '').trim()
   const secret = String(env.CREDIT_JCOURSE_SECRET || '').trim()
-  if (!baseRaw || !secret) return { ok: false, skipped: true, error: 'credit integration env not set' }
+  // 配置错误不应当被视为“跳过”，否则前端无法给用户任何提示。
+  if (!baseRaw || !secret) return { ok: false, skipped: false, error: 'credit integration env not set' }
 
   // `credit.yourtj.de` 是积分站前端域名；其 `/api/*` rewrite 规则不一定包含 integration 接口。
   // integration 接口应指向 backend-core（通常为 `https://core.credit.yourtj.de`）。
