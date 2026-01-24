@@ -39,6 +39,7 @@ jobs:
               - "backend/**"
             frontend:
               - "frontend/**"
+              - ".github/workflows/deploy-dev-cloudflare.yml"
             scheduler:
               - "scheduler/**"
 
