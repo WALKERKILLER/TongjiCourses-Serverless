@@ -31,6 +31,8 @@ app.use('/*', async (c, next) => {
   c.res.headers.set('Pragma', 'no-cache')
 })
 
+// redeploy marker (no-op)
+
 app.onError((err, c) => {
   console.error('Error:', err)
   return c.json({ error: err.message || 'Internal Server Error' }, 500)

@@ -38,6 +38,7 @@ jobs:
           filters: |
             backend:
               - "backend/**"
+              - ".github/workflows/deploy-cloudflare.yml"
             frontend:
               - "frontend/**"
               - ".github/workflows/deploy-cloudflare.yml"
@@ -69,8 +70,10 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE || secrets.VITE_CREDIT_API_BASE }}
-      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET || secrets.JCOURSE_INTEGRATION_SECRET }}
+      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE }}
+      VITE_CREDIT_API_BASE: ${{ secrets.VITE_CREDIT_API_BASE }}
+      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET }}
+      JCOURSE_INTEGRATION_SECRET: ${{ secrets.JCOURSE_INTEGRATION_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,15 +89,23 @@ jobs:
       - name: Ensure backend secrets
         run: |
           set -euo pipefail
-          if [ -n "${CREDIT_API_BASE:-}" ]; then
-            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE
-            # compat: allow backend to read the same env name as frontend, if user reused it on Workers.
-            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put VITE_CREDIT_API_BASE
+          BASE="${CREDIT_API_BASE:-${VITE_CREDIT_API_BASE:-}}"
+          SECRET="${CREDIT_JCOURSE_SECRET:-${JCOURSE_INTEGRATION_SECRET:-}}"
+
+          if [ -n "${BASE:-}" ]; then
+            echo "$BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE
+            echo "$BASE" | npx --yes wrangler@4 secret put VITE_CREDIT_API_BASE
+            echo "credit base: set"
+          else
+            echo "credit base: missing (CREDIT_API_BASE / VITE_CREDIT_API_BASE)"
           fi
-          if [ -n "${CREDIT_JCOURSE_SECRET:-}" ]; then
-            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET
-            # compat with Credit backend-core secret name
-            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put JCOURSE_INTEGRATION_SECRET
+
+          if [ -n "${SECRET:-}" ]; then
+            echo "$SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET
+            echo "$SECRET" | npx --yes wrangler@4 secret put JCOURSE_INTEGRATION_SECRET
+            echo "credit secret: set"
+          else
+            echo "credit secret: missing (CREDIT_JCOURSE_SECRET / JCOURSE_INTEGRATION_SECRET)"
           fi
 
       - name: Deploy Worker

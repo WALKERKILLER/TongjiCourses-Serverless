@@ -37,6 +37,7 @@ jobs:
           filters: |
             backend:
               - "backend/**"
+              - ".github/workflows/deploy-dev-cloudflare.yml"
             frontend:
               - "frontend/**"
               - ".github/workflows/deploy-dev-cloudflare.yml"
@@ -54,8 +55,10 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
-      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE || secrets.VITE_CREDIT_API_BASE }}
-      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET || secrets.JCOURSE_INTEGRATION_SECRET }}
+      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE }}
+      VITE_CREDIT_API_BASE: ${{ secrets.VITE_CREDIT_API_BASE }}
+      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET }}
+      JCOURSE_INTEGRATION_SECRET: ${{ secrets.JCOURSE_INTEGRATION_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,13 +79,23 @@ jobs:
             exit 1
           fi
           echo "$ADMIN_SECRET" | npx --yes wrangler@4 secret put ADMIN_SECRET --env dev
-          if [ -n "${CREDIT_API_BASE:-}" ]; then
-            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE --env dev
-            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put VITE_CREDIT_API_BASE --env dev
+          BASE="${CREDIT_API_BASE:-${VITE_CREDIT_API_BASE:-}}"
+          SECRET="${CREDIT_JCOURSE_SECRET:-${JCOURSE_INTEGRATION_SECRET:-}}"
+
+          if [ -n "${BASE:-}" ]; then
+            echo "$BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE --env dev
+            echo "$BASE" | npx --yes wrangler@4 secret put VITE_CREDIT_API_BASE --env dev
+            echo "credit base: set (dev)"
+          else
+            echo "credit base: missing (dev)"
           fi
-          if [ -n "${CREDIT_JCOURSE_SECRET:-}" ]; then
-            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET --env dev
-            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put JCOURSE_INTEGRATION_SECRET --env dev
+
+          if [ -n "${SECRET:-}" ]; then
+            echo "$SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET --env dev
+            echo "$SECRET" | npx --yes wrangler@4 secret put JCOURSE_INTEGRATION_SECRET --env dev
+            echo "credit secret: set (dev)"
+          else
+            echo "credit secret: missing (dev)"
           fi
 
       - name: Deploy Worker (env.dev)
