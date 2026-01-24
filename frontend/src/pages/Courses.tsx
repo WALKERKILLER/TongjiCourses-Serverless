@@ -25,7 +25,13 @@ export default function Courses() {
   const [loading, setLoading] = useState(false)
   const [isSearching, setIsSearching] = useState(false) // 用于区分用户主动搜索和自动加载
   const [error, setError] = useState('')
-  const [showLegacy, setShowLegacy] = useState(false)
+  const [showLegacy, setShowLegacy] = useState(() => {
+    try {
+      return localStorage.getItem('yourtj_show_legacy_docs') === '1'
+    } catch {
+      return false
+    }
+  })
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -106,6 +112,11 @@ export default function Courses() {
   const toggleLegacy = () => {
     const newValue = !showLegacy
     setShowLegacy(newValue)
+    try {
+      localStorage.setItem('yourtj_show_legacy_docs', newValue ? '1' : '0')
+    } catch {
+      // ignore
+    }
     setFilters({
       selectedDepartments: [],
       onlyWithReviews: false,
@@ -164,7 +175,7 @@ export default function Courses() {
 
           {/* Legacy Toggle */}
           <div className="mt-4 flex items-center gap-3">
-            <span className="text-sm text-slate-500">查询乌龙茶历史数据：</span>
+            <span className="text-sm text-slate-500">查询旧乌龙茶文档：</span>
             <button
               onClick={toggleLegacy}
               className={`relative w-12 h-6 rounded-full transition-colors ${showLegacy ? 'bg-cyan-500' : 'bg-slate-300'}`}
@@ -204,15 +215,23 @@ export default function Courses() {
         <>
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-slate-800">
-              {showLegacy ? '乌龙茶历史数据' : '课程列表'}
-              {showLegacy && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 px-2 py-1 rounded-md">2023-09-03</span>}
+              课程列表
+              {showLegacy && (
+                <span className="ml-2 text-xs font-normal text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                  含旧乌龙茶文档
+                </span>
+              )}
             </h3>
             <span className="text-sm text-slate-400">共 {total} 门课程</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 500px' }}>
             {courses.map((course) => (
-              <Link key={course.id} to={`/course/${course.id}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 180px' }}>
+              <Link
+                key={course.id}
+                to={`/course/${course.id}${showLegacy ? '?legacy=1' : ''}`}
+                style={{ contentVisibility: 'auto', containIntrinsicSize: '0 180px' }}
+              >
                 <GlassCard className="h-[180px] flex flex-col justify-between group">
                   <div>
                     <div className="flex justify-between items-start mb-3">
@@ -273,7 +292,7 @@ export default function Courses() {
           {courses.length === 0 && (
             <div className="text-center py-20 bg-white/50 rounded-3xl border border-dashed border-slate-300">
               <p className="text-slate-400">
-                {showLegacy ? '乌龙茶历史数据中没有找到相关课程' : '没有找到相关课程，换个关键词试试？'}
+                {showLegacy ? '旧乌龙茶文档中没有找到相关课程' : '没有找到相关课程，换个关键词试试？'}
               </p>
             </div>
           )}

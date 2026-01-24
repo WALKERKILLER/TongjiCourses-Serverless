@@ -55,9 +55,12 @@ export async function fetchDepartments(legacy?: boolean) {
   return res.json()
 }
 
-export async function fetchCourse(id: string, opts?: { clientId?: string }) {
-  const q = opts?.clientId ? `?clientId=${encodeURIComponent(opts.clientId)}` : ''
-  const res = await fetchWithTimeout(`${API_BASE}/api/course/${id}${q}`, undefined, 15000)
+export async function fetchCourse(id: string, opts?: { clientId?: string; legacy?: boolean }) {
+  const q = new URLSearchParams()
+  if (opts?.clientId) q.set('clientId', opts.clientId)
+  if (opts?.legacy) q.set('legacy', 'true')
+  const suffix = q.toString() ? `?${q.toString()}` : ''
+  const res = await fetchWithTimeout(`${API_BASE}/api/course/${id}${suffix}`, undefined, 15000)
   if (!res.ok) throw new Error('Failed to fetch course')
   return res.json()
 }

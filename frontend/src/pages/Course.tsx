@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { fetchCourse, likeReview, unlikeReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
@@ -37,14 +37,24 @@ interface CourseData {
 export default function Course() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [course, setCourse] = useState<CourseData | null>(null)
   const [displayCount, setDisplayCount] = useState(20) // 初始显示20条评论
   const clientId = useMemo(() => getOrCreateClientId(), [])
   const walletHash = loadCreditWallet()?.userHash || ''
+  const includeLegacy = useMemo(() => {
+    try {
+      const sp = new URLSearchParams(location.search || '')
+      if (sp.get('legacy') === '1' || sp.get('legacy') === 'true') return true
+      return localStorage.getItem('yourtj_show_legacy_docs') === '1'
+    } catch {
+      return false
+    }
+  }, [location.search])
 
   useEffect(() => {
-    if (id) fetchCourse(id, { clientId }).then(setCourse)
-  }, [id, clientId])
+    if (id) fetchCourse(id, { clientId, legacy: includeLegacy }).then(setCourse)
+  }, [id, clientId, includeLegacy])
 
   const handleLoadMore = () => {
     setDisplayCount(prev => prev + 20)
