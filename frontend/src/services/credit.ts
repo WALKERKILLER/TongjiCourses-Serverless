@@ -1,4 +1,4 @@
-const CREDIT_BASE = (import.meta.env.VITE_CREDIT_API_BASE || 'https://core.credit.yourtj.de').replace(/\/$/, '')
+const CREDIT_BASE = (import.meta.env.VITE_CREDIT_API_BASE || 'https://credit.yourtj.de').replace(/\/$/, '')
 
 async function fetchWithTimeout(url: string, options?: RequestInit, timeout = 15000) {
   const controller = new AbortController()
