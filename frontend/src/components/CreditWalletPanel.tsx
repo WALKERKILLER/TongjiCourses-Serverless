@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { clearCreditWallet, loadCreditWallet, saveCreditWallet } from '../utils/creditWallet'
 import { fetchCreditBalance, fetchCreditSummary } from '../services/credit'
+import { useDraggableDesktop } from '../utils/useDraggableDesktop'
 
 type SummaryData = {
   balance: number
@@ -21,6 +22,7 @@ export default function CreditWalletPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const [embedOpen, setEmbedOpen] = useState(false)
+  const drag = useDraggableDesktop('yourtj_floating_wallet_pos', { x: 0, y: 0 })
 
   const formatError = (e: any) => {
     const msg = String(e?.message || e || '加载失败')
@@ -112,8 +114,13 @@ const handleBind = async () => {
 
   const todayEstimated = useMemo(() => {
     const review = Number(summary?.today?.reviewReward || 0)
-    const like = Number(summary?.today?.likePendingDelta || 0)
-    return review + like
+    const likeCount = Number(summary?.today?.likePendingDelta || 0)
+    return review + likeCount * 3
+  }, [summary])
+
+  const likePendingPoints = useMemo(() => {
+    const likeCount = Number(summary?.today?.likePendingDelta || 0)
+    return likeCount * 3
   }, [summary])
 
   const logout = () => {
@@ -156,7 +163,7 @@ const handleBind = async () => {
         {!wallet ? (
           <div className="mt-4 space-y-3">
             <div className="text-sm text-slate-600 leading-relaxed">
-              请使用积分站完成注册/绑定（注册与须知流程与积分站保持一致）。绑定后：50 字以上点评 +5；收到点赞每日 0 点结算（可撤销）。
+              请绑定YOURTJ积分站以获取评课激励积分
             </div>
             <button
               type="button"
@@ -210,7 +217,8 @@ const handleBind = async () => {
             <div className="rounded-xl bg-white border border-slate-200 p-2">
               <div className="text-[10px] font-black text-slate-500">点赞</div>
               <div className="text-sm font-extrabold text-slate-800">
-                {summary.today.likePendingDelta >= 0 ? `+${summary.today.likePendingDelta}` : summary.today.likePendingDelta}
+                {likePendingPoints >= 0 ? `+${likePendingPoints}` : likePendingPoints}
+                <span className="ml-1 text-[10px] font-black text-slate-400">({summary.today.likePendingDelta} 赞)</span>
               </div>
             </div>
             <button
@@ -261,12 +269,12 @@ const handleBind = async () => {
         <div className="p-4">
           <div className="grid grid-cols-1 gap-2">
             <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="text-sm font-bold text-slate-700">50 字以上点评</div>
-              <div className="text-sm font-extrabold text-slate-900">+5（立即）</div>
+              <div className="text-sm font-bold text-slate-700">1 条 50 字以上点评</div>
+              <div className="text-sm font-extrabold text-slate-900">+10（立即获得）</div>
             </div>
             <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
               <div className="text-sm font-bold text-amber-800">收到 1 个点赞</div>
-              <div className="text-sm font-extrabold text-amber-900">+1（每日 0 点结算，可撤销）</div>
+              <div className="text-sm font-extrabold text-amber-900">+3（每日结算）</div>
             </div>
           </div>
           {wallet && (
@@ -307,10 +315,16 @@ const handleBind = async () => {
           className={`bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl rounded-2xl transition-all duration-300 ${
             isOpen ? 'w-[380px]' : 'w-14'
           }`}
+          style={drag.style as any}
         >
           <button
             type="button"
-            onClick={() => (isOpen ? setIsOpen(false) : openPanel())}
+            {...(drag.dragHandleProps as any)}
+            onClick={() => {
+              if (drag.consumeDragFlag()) return
+              if (isOpen) setIsOpen(false)
+              else openPanel()
+            }}
             className="relative w-full p-3 flex items-center justify-center hover:bg-slate-50 rounded-2xl transition-colors"
             title={isOpen ? '收起钱包' : '打开钱包'}
           >

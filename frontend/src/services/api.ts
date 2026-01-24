@@ -108,3 +108,29 @@ export async function unlikeReview(reviewId: number, clientId: string) {
   if (!res.ok) throw new Error('Failed to unlike review')
   return res.json()
 }
+
+export async function updateReview(reviewId: number, data: {
+  rating: number
+  comment: string
+  semester: string
+  turnstile_token: string
+  reviewer_name?: string
+  reviewer_avatar?: string
+  walletUserHash?: string
+}) {
+  const res = await fetchWithTimeout(`${API_BASE}/api/review/${reviewId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }, 15000)
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    try {
+      const json = JSON.parse(text)
+      throw new Error(json?.error || json?.message || `提交失败 (HTTP ${res.status})`)
+    } catch {
+      throw new Error(text || `提交失败 (HTTP ${res.status})`)
+    }
+  }
+  return res.json()
+}

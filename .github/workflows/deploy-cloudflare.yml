@@ -69,8 +69,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE }}
-      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET }}
+      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE || secrets.VITE_CREDIT_API_BASE }}
+      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET || secrets.JCOURSE_INTEGRATION_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,9 +88,13 @@ jobs:
           set -euo pipefail
           if [ -n "${CREDIT_API_BASE:-}" ]; then
             echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put CREDIT_API_BASE
+            # compat: allow backend to read the same env name as frontend, if user reused it on Workers.
+            echo "$CREDIT_API_BASE" | npx --yes wrangler@4 secret put VITE_CREDIT_API_BASE
           fi
           if [ -n "${CREDIT_JCOURSE_SECRET:-}" ]; then
             echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put CREDIT_JCOURSE_SECRET
+            # compat with Credit backend-core secret name
+            echo "$CREDIT_JCOURSE_SECRET" | npx --yes wrangler@4 secret put JCOURSE_INTEGRATION_SECRET
           fi
 
       - name: Deploy Worker

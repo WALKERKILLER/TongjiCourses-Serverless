@@ -11,6 +11,9 @@ type Bindings = {
   ONESYSTEM_COOKIE?: string
   CREDIT_API_BASE?: string
   CREDIT_JCOURSE_SECRET?: string
+  // compat: some deployments may reuse frontend env name or Credit backend secret name
+  VITE_CREDIT_API_BASE?: string
+  JCOURSE_INTEGRATION_SECRET?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -111,8 +114,8 @@ async function postCreditJcourseEvent(
   env: Bindings,
   payload: any
 ): Promise<{ ok: boolean; skipped?: boolean; error?: string; status?: number }> {
-  const baseRaw = String(env.CREDIT_API_BASE || '').trim()
-  const secret = String(env.CREDIT_JCOURSE_SECRET || '').trim()
+  const baseRaw = String(env.CREDIT_API_BASE || env.VITE_CREDIT_API_BASE || '').trim()
+  const secret = String(env.CREDIT_JCOURSE_SECRET || env.JCOURSE_INTEGRATION_SECRET || '').trim()
   // 配置错误不应当被视为“跳过”，否则前端无法给用户任何提示。
   if (!baseRaw || !secret) return { ok: false, skipped: false, error: 'credit integration env not set' }
 
@@ -704,12 +707,67 @@ app.post('/api/review', async (c) => {
         kind: 'review_reward',
         eventId: `review:${reviewId || `${course_id}:${Date.now()}`}`,
         userHash: walletHash,
-        amount: 5,
+        amount: 10,
         metadata: { reviewId, courseId: course_id }
       })
     : { ok: false, skipped: true, error: creditRewardEligible ? undefined : 'not eligible' }
 
   return c.json({ success: true, reviewId, creditReward })
+})
+
+// 编辑评价（仅允许编辑“绑定了积分钱包”的本人评价）
+app.put('/api/review/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isFinite(id)) return c.json({ error: 'Invalid review id' }, 400)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const { rating, comment, semester, turnstile_token, reviewer_name, reviewer_avatar, walletUserHash, wallet_user_hash } = body
+  const walletHash = String(walletUserHash || wallet_user_hash || '').trim()
+
+  if (!(await verifyTongjiCaptcha(turnstile_token, c.env.CAPTCHA_SITEVERIFY_URL))) {
+    return c.json({ error: '人机验证无效或已过期' }, 403)
+  }
+
+  if (!walletHash || !/^[a-f0-9]{64}$/i.test(walletHash)) {
+    return c.json({ error: '未绑定积分钱包，无法编辑' }, 400)
+  }
+
+  await ensureReviewsWalletColumn(c.env.DB)
+
+  const existing = await c.env.DB
+    .prepare('SELECT id, course_id, wallet_user_hash FROM reviews WHERE id = ? LIMIT 1')
+    .bind(id)
+    .first<{ id: number; course_id: number; wallet_user_hash?: string | null }>()
+  if (!existing) return c.json({ error: 'Review not found' }, 404)
+
+  if (String(existing.wallet_user_hash || '').trim() !== walletHash) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const safeRating = Math.max(0, Math.min(5, Number(rating || 0)))
+  const safeComment = String(comment || '')
+  const safeSemester = String(semester || '')
+  const safeName = String(reviewer_name || '')
+  const safeAvatar = String(reviewer_avatar || '')
+
+  await c.env.DB
+    .prepare(
+      `UPDATE reviews
+       SET rating = ?, comment = ?, semester = ?, reviewer_name = ?, reviewer_avatar = ?
+       WHERE id = ?`
+    )
+    .bind(safeRating, safeComment, safeSemester, safeName, safeAvatar, id)
+    .run()
+
+  // 更新课程统计（只统计非legacy且rating>0的评价）
+  await c.env.DB.prepare(`
+    UPDATE courses SET
+      review_count = (SELECT COUNT(*) FROM reviews WHERE course_id = ? AND is_hidden = 0),
+      review_avg = (SELECT AVG(rating) FROM reviews WHERE course_id = ? AND is_hidden = 0 AND rating > 0)
+    WHERE id = ?
+  `).bind(existing.course_id, existing.course_id, existing.course_id).run()
+
+  return c.json({ success: true })
 })
 
 app.post('/api/review/:id/like', async (c) => {

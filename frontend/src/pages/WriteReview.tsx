@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { fetchCourse, submitReview } from '../services/api'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { fetchCourse, submitReview, updateReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import MarkdownEditor from '../components/MarkdownEditor'
 import MarkdownToolbar from '../components/MarkdownToolbar'
@@ -25,6 +25,7 @@ const DEFAULT_HINTS: TemplateHints = {
 export default function WriteReview() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [course, setCourse] = useState<{ name: string; code: string } | null>(null)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState(REVIEW_TEMPLATE)
@@ -40,6 +41,9 @@ export default function WriteReview() {
   const [qqNumber, setQqNumber] = useState('')
   const [randomSeed] = useState(() => Math.random().toString(36).slice(2, 10))
 
+  const editReview = (location.state as any)?.editReview as any | undefined
+  const isEdit = Boolean(editReview?.id) && new URLSearchParams(location.search || '').get('edit') === '1'
+
   const getAvatarUrl = () => {
     if (!showReviewer) return ''
     if (avatarType === 'qq' && qqNumber) {
@@ -51,6 +55,20 @@ export default function WriteReview() {
   useEffect(() => {
     if (id) fetchCourse(id).then(setCourse)
   }, [id])
+
+  useEffect(() => {
+    if (!isEdit) return
+    if (!editReview) return
+    setComment(String(editReview.comment || ''))
+    setRating(Number(editReview.rating ?? 5))
+    setShowReviewer(Boolean(editReview.reviewer_name || editReview.reviewer_avatar))
+    setReviewerName(String(editReview.reviewer_name || ''))
+    if (String(editReview.reviewer_avatar || '').includes('qlogo.cn')) {
+      setAvatarType('qq')
+      const m = String(editReview.reviewer_avatar || '').match(/nk=(\d+)/)
+      if (m?.[1]) setQqNumber(m[1])
+    }
+  }, [isEdit, editReview])
 
   // 草稿自动保存
   useEffect(() => {
@@ -140,8 +158,7 @@ export default function WriteReview() {
     setLoading(true)
     try {
       const wallet = loadCreditWallet()
-      const res = await submitReview({
-        course_id: Number(id),
+      const payload = {
         rating,
         comment,
         semester: '',
@@ -149,26 +166,39 @@ export default function WriteReview() {
         reviewer_name: showReviewer ? reviewerName : '',
         reviewer_avatar: getAvatarUrl(),
         walletUserHash: wallet?.userHash || ''
-      })
-      if (res.success) {
-        const credit = res?.creditReward
-        if (credit && credit.skipped !== true) {
-          if (credit.ok) {
-            alert('点评提交成功！评课激励 +5 已发放到积分钱包。')
-          } else {
-            const reason = credit.error ? `（${String(credit.error).slice(0, 120)}）` : ''
-            alert(`点评提交成功，但评课激励发放失败${reason}`)
-          }
+      }
+
+      if (isEdit && editReview?.id) {
+        const res = await updateReview(Number(editReview.id), payload)
+        if (res?.success) {
+          alert('编辑成功！')
+          if (id) localStorage.removeItem(`review_draft_${id}`)
+          navigate(`/course/${id}`)
         } else {
-          alert('点评提交成功！')
+          alert(res?.error || '编辑失败')
         }
-        // 清除草稿
-        if (id) {
-          localStorage.removeItem(`review_draft_${id}`)
-        }
-        navigate(`/course/${id}`)
       } else {
-        alert(res.error || '提交失败')
+        const res = await submitReview({
+          course_id: Number(id),
+          ...payload
+        })
+        if (res.success) {
+          const credit = res?.creditReward
+          if (credit && credit.skipped !== true) {
+            if (credit.ok) {
+              alert('点评提交成功！评课激励 +10 已发放到积分钱包。')
+            } else {
+              const reason = credit.error ? `（${String(credit.error).slice(0, 120)}）` : ''
+              alert(`点评提交成功，但评课激励发放失败${reason}`)
+            }
+          } else {
+            alert('点评提交成功！')
+          }
+          if (id) localStorage.removeItem(`review_draft_${id}`)
+          navigate(`/course/${id}`)
+        } else {
+          alert(res.error || '提交失败')
+        }
       }
     } catch (e: any) {
       const msg = String(e?.message || e || '提交失败')
@@ -199,14 +229,17 @@ export default function WriteReview() {
             撰写评价
           </div>
           <h2 className="text-2xl font-bold text-slate-800">{course.code} - {course.name}</h2>
+          {isEdit && (
+            <p className="mt-1 text-sm text-slate-500">编辑我的评价（需要完成一次人机验证）</p>
+          )}
         </div>
 
         <div className={`mb-6 p-4 rounded-2xl border ${walletBound ? 'bg-emerald-50/70 border-emerald-100' : 'bg-amber-50/70 border-amber-100'}`}>
           <div className="flex items-start justify-between gap-3">
             <div className="text-sm font-semibold text-slate-700 leading-relaxed">
               {walletBound
-                ? `已绑定积分钱包：${reviewEligible ? '本次点评满足 50 字，将自动获得 +5 积分。' : '点评达到 50 字可获得 +5 积分。'}`
-                : '未绑定积分钱包：绑定后 50 字以上点评可自动 +5，收到点赞每日 0 点结算。'}
+                ? `已绑定积分钱包：${reviewEligible ? '本次点评满足 50 字，将自动获得 +10 积分。' : '点评达到 50 字可获得 +10 积分。'}`
+                : '未绑定积分钱包：绑定后 50 字以上点评可立即获得 +10，收到 1 个点赞 +3（每日结算）。'}
             </div>
             {!walletBound && (
               <button

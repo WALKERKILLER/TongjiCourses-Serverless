@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useDraggableDesktop } from '../utils/useDraggableDesktop'
 
 export interface FilterState {
   selectedDepartments: string[]
@@ -28,6 +29,7 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
   const [campusOptions, setCampusOptions] = useState<Array<{ campusId: string; campusName: string }>>([])
   const [campusPickerOpen, setCampusPickerOpen] = useState(false)
   const [campusSearch, setCampusSearch] = useState('')
+  const drag = useDraggableDesktop('yourtj_floating_filter_pos', { x: 0, y: 0 })
 
   const openPanel = () => {
     window.dispatchEvent(new CustomEvent('yourtj-floating-open', { detail: { panel: 'filter' } }))
@@ -412,10 +414,16 @@ export default function FilterPanel({ value, onFilterChange, departments }: Filt
           className={`bg-white/90 backdrop-blur-xl border border-slate-200 shadow-xl rounded-2xl transition-all duration-300 ${
             isOpen ? 'w-[380px]' : 'w-14'
           }`}
+          style={drag.style as any}
         >
           <button
             type="button"
-            onClick={() => (isOpen ? setIsOpen(false) : openPanel())}
+            {...(drag.dragHandleProps as any)}
+            onClick={() => {
+              if (drag.consumeDragFlag()) return
+              if (isOpen) setIsOpen(false)
+              else openPanel()
+            }}
             className="relative w-full p-3 flex items-center justify-center hover:bg-slate-50 rounded-2xl transition-colors"
             title={isOpen ? '收起筛选' : '展开筛选'}
           >
