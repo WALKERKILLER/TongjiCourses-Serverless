@@ -135,4 +135,4 @@ jobs:
         run: npm run build
 
       - name: Deploy Pages
-        run: npx --yes wrangler@4 pages deploy dist --project-name jcourse-web --branch main
+        run: npx --yes wrangler@4 pages deploy dist --project-name jcourse-web
