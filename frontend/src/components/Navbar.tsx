@@ -1,10 +1,12 @@
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Logo from './Logo'
 
 type NavItem = { path: string; label: string; external?: boolean }
 
 export default function Navbar() {
   const location = useLocation()
+  const navigate = useNavigate()
 
   const navItems: NavItem[] = [
     { path: '/', label: '课程目录' },
@@ -12,6 +14,108 @@ export default function Navbar() {
     { path: '/feedback', label: '反馈留言' },
     { path: 'https://umami.yourtj.de/share/Sv78TrEoxVnsshxy', label: '流量监测', external: true },
   ]
+
+  const key = useMemo(() => `${location.pathname}${location.search}${location.hash}`, [location.pathname, location.search, location.hash])
+
+  const stackRef = useRef<string[]>([])
+  const idxRef = useRef(0)
+  const navModeRef = useRef<'push' | 'back' | 'forward' | 'home'>('push')
+  const [, forceRender] = useState(0)
+
+  const persistState = () => {
+    try {
+      const st: any = window.history.state || {}
+      window.history.replaceState(
+        { ...st, __yourtj_stack: stackRef.current, __yourtj_idx: idxRef.current },
+        ''
+      )
+    } catch {
+      // ignore
+    }
+  }
+
+  // init stack from history.state once
+  useEffect(() => {
+    try {
+      const st: any = window.history.state || {}
+      const stack: string[] = Array.isArray(st.__yourtj_stack) ? st.__yourtj_stack : []
+      const idx = Number.isFinite(Number(st.__yourtj_idx)) ? Number(st.__yourtj_idx) : 0
+      stackRef.current = stack.length ? stack : [key]
+      idxRef.current = Math.min(Math.max(0, idx), stackRef.current.length - 1)
+      if (stackRef.current[idxRef.current] !== key) {
+        stackRef.current = [key]
+        idxRef.current = 0
+      }
+      persistState()
+      forceRender((x) => x + 1)
+    } catch {
+      stackRef.current = [key]
+      idxRef.current = 0
+      forceRender((x) => x + 1)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // update stack on navigation
+  useEffect(() => {
+    const stack = stackRef.current
+    const idx = idxRef.current
+
+    if (stack[idx] === key) {
+      navModeRef.current = 'push'
+      forceRender((x) => x + 1)
+      return
+    }
+
+    if (navModeRef.current === 'back' || navModeRef.current === 'forward') {
+      // We already updated idx before calling navigate(); just sync and reset.
+      navModeRef.current = 'push'
+      persistState()
+      forceRender((x) => x + 1)
+      return
+    }
+
+    // normal navigation: push
+    const nextStack = idx < stack.length - 1 ? stack.slice(0, idx + 1) : stack.slice()
+    nextStack.push(key)
+    stackRef.current = nextStack
+    idxRef.current = nextStack.length - 1
+    persistState()
+    forceRender((x) => x + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  const isHome = location.pathname === '/'
+  const canBack = idxRef.current > 0
+  const canForward = idxRef.current < stackRef.current.length - 1
+
+  const navBack = () => {
+    if (!canBack) return
+    idxRef.current -= 1
+    navModeRef.current = 'back'
+    persistState()
+    navigate(stackRef.current[idxRef.current], { replace: true })
+    forceRender((x) => x + 1)
+  }
+
+  const navForward = () => {
+    if (!canForward) return
+    idxRef.current += 1
+    navModeRef.current = 'forward'
+    persistState()
+    navigate(stackRef.current[idxRef.current], { replace: true })
+    forceRender((x) => x + 1)
+  }
+
+  const goHome = () => {
+    if (isHome) return
+    navModeRef.current = 'home'
+    navigate('/')
+  }
+
+  const navBtnBase = 'w-9 h-9 rounded-2xl flex items-center justify-center border bg-white/60 backdrop-blur hover:bg-white/80 active:scale-95 transition'
+  const navBtnEnabled = 'border-slate-200 text-slate-600'
+  const navBtnDisabled = 'border-slate-100 text-slate-300 cursor-not-allowed opacity-70'
 
   return (
     <nav className="sticky top-4 z-50 px-4 mx-auto max-w-7xl">
@@ -27,6 +131,47 @@ export default function Navbar() {
               <h1 className="text-[17px] font-bold text-slate-800 tracking-tight whitespace-nowrap">YOURTJ选课社区</h1>
             </div>
           </Link>
+
+          {/* In-app navigation arrows (never leave the site) */}
+          <div className="flex items-center gap-1.5 mr-2 md:mr-3 shrink-0">
+            <button
+              type="button"
+              onClick={navBack}
+              disabled={!canBack}
+              className={`${navBtnBase} ${canBack ? navBtnEnabled : navBtnDisabled}`}
+              aria-label="后退"
+              title="后退"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={navForward}
+              disabled={!canForward}
+              className={`${navBtnBase} ${canForward ? navBtnEnabled : navBtnDisabled}`}
+              aria-label="前进"
+              title="前进"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={goHome}
+              disabled={isHome}
+              className={`${navBtnBase} ${!isHome ? navBtnEnabled : navBtnDisabled}`}
+              aria-label="回到首页"
+              title="回到首页"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5l9-7 9 7" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 22V12h6v10" />
+              </svg>
+            </button>
+          </div>
 
           <div className="hidden md:flex items-center gap-1 bg-slate-100/50 p-1 rounded-full">
             {navItems.map((item) => {

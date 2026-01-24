@@ -6,6 +6,17 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
 }
 
+function getDragBounds() {
+  if (typeof window === 'undefined') return { maxX: 800, maxY: 800 }
+  const vw = Math.max(320, window.innerWidth || 0)
+  const vh = Math.max(480, window.innerHeight || 0)
+  // Wide enough so it doesn't feel "stuck", but still roughly within viewport.
+  return {
+    maxX: Math.max(360, Math.floor(vw * 0.8)),
+    maxY: Math.max(520, Math.floor(vh * 0.8))
+  }
+}
+
 function loadPoint(key: string, fallback: Point): Point {
   try {
     const raw = localStorage.getItem(key)
@@ -50,9 +61,7 @@ export function useDraggableDesktop(storageKey: string, fallback: Point) {
     const dy = e.clientY - dragRef.current.startClientY
     if (Math.abs(dx) + Math.abs(dy) > 4) draggedRef.current = true
 
-    // keep within viewport-ish bounds; allow some overflow so user can tuck it aside
-    const maxX = 320
-    const maxY = 420
+    const { maxX, maxY } = getDragBounds()
     const nextX = clamp(dragRef.current.startX + dx, -maxX, maxX)
     const nextY = clamp(dragRef.current.startY + dy, -maxY, maxY)
     setOffset({ x: nextX, y: nextY })
@@ -75,9 +84,13 @@ export function useDraggableDesktop(storageKey: string, fallback: Point) {
     dragHandleProps: {
       onPointerDown,
       onPointerMove,
-      onPointerUp
+      onPointerUp,
+      style: {
+        touchAction: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+      } as any
     },
     consumeDragFlag
   }
 }
-
