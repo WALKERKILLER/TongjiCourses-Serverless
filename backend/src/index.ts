@@ -31,7 +31,7 @@ app.use('/*', async (c, next) => {
   c.res.headers.set('Pragma', 'no-cache')
 })
 
-// redeploy marker (no-op)
+// redeploy marker (no-op) v2
 
 app.onError((err, c) => {
   console.error('Error:', err)
