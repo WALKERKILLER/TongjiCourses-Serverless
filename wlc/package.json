@@ -1,0 +1,24 @@
+{
+  "name": "wulongcha-docs",
+  "version": "1.0.0",
+  "description": "乌龙茶课程评价文档站点",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "keywords": [
+    "tongji",
+    "course",
+    "review",
+    "documentation"
+  ],
+  "author": "YourTJ Team",
+  "license": "MIT",
+  "devDependencies": {
+    "mermaid": "^11.12.2",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17"
+  }
+}

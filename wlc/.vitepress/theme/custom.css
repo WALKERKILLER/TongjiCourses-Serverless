@@ -1,0 +1,35 @@
+.yourtj-back-to-main {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(15, 23, 42, 0.85);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.yourtj-back-to-main:hover {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(15, 23, 42, 0.18);
+  color: rgba(15, 23, 42, 0.95);
+}
+
+@media (max-width: 768px) {
+  .yourtj-back-to-main {
+    top: 10px;
+    left: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+

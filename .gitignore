@@ -22,6 +22,9 @@ backend/src/config.onesystem.ini
 frontend/public/sim/
 frontend/public/sim-assets/
 
+# WLC (VitePress docs) build output (generated)
+frontend/public/wlc/
+
 # Scheduler deps
 scheduler/node_modules/
 
@@ -47,6 +50,7 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
+**/.vitepress/cache/
 
 # Python
 __pycache__/

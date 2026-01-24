@@ -9,7 +9,8 @@
     "dev:lan": "vite --host 0.0.0.0 --port 5173",
     "dev:with-sim": "npm run build:scheduler && vite",
     "build:scheduler": "npm --prefix ../scheduler run build",
-    "build": "npm run build:scheduler && tsc && vite build",
+    "build:wlc": "node ./scripts/build-wlc.mjs",
+    "build": "npm run build:wlc && npm run build:scheduler && tsc && vite build",
     "preview": "vite preview",
     "deploy": "wrangler pages deploy dist --project-name jcourse-web"
   },

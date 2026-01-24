@@ -7,3 +7,11 @@
 /wlcdoc/assets/chunks/*.js
   Content-Type: application/javascript; charset=utf-8
 
+/wlc/*.js
+  Content-Type: application/javascript; charset=utf-8
+
+/wlc/assets/*.js
+  Content-Type: application/javascript; charset=utf-8
+
+/wlc/assets/chunks/*.js
+  Content-Type: application/javascript; charset=utf-8

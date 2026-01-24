@@ -25,14 +25,9 @@ export default function Courses() {
   const [loading, setLoading] = useState(false)
   const [isSearching, setIsSearching] = useState(false) // 用于区分用户主动搜索和自动加载
   const [error, setError] = useState('')
-  const [showLegacy, setShowLegacy] = useState(() => {
-    try {
-      return localStorage.getItem('yourtj_show_legacy_docs') === '1'
-    } catch {
-      return false
-    }
-  })
-  const [docReady, setDocReady] = useState(false)
+  const openLegacyDocs = () => {
+    window.open('/wlc/', '_blank', 'noopener,noreferrer')
+  }
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -96,16 +91,6 @@ export default function Courses() {
   }, [filters])
 
   // 打开开关后一会再加载文档 iframe，避免一闪而过
-  useEffect(() => {
-    if (!showLegacy) {
-      setDocReady(false)
-      return
-    }
-    setDocReady(false)
-    const t = setTimeout(() => setDocReady(true), 900)
-    return () => clearTimeout(t)
-  }, [showLegacy])
-
   // 每次返回首页时刷新数据和开课单位列表
   useEffect(() => {
     if (location.pathname === '/') {
@@ -113,16 +98,6 @@ export default function Courses() {
       loadDepartments()
     }
   }, [location.key])
-
-  const toggleLegacy = () => {
-    const newValue = !showLegacy
-    setShowLegacy(newValue)
-    try {
-      localStorage.setItem('yourtj_show_legacy_docs', newValue ? '1' : '0')
-    } catch {
-      // ignore
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -168,51 +143,20 @@ export default function Courses() {
             </button>
           </div>
 
-          {/* Legacy Toggle */}
           <div className="mt-4 flex items-center gap-3">
-            <span className="text-sm text-slate-500">查询旧乌龙茶文档：</span>
             <button
-              onClick={toggleLegacy}
-              className={`relative w-12 h-6 rounded-full transition-colors ${showLegacy ? 'bg-cyan-500' : 'bg-slate-300'}`}
+              type="button"
+              onClick={openLegacyDocs}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-extrabold hover:bg-slate-50"
             >
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${showLegacy ? 'left-7' : 'left-1'}`} />
+              查询旧乌龙茶文档
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h6m0 0v6m0-6L10 16m-1 5H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v4" />
+              </svg>
             </button>
-            <span className={`text-sm font-semibold ${showLegacy ? 'text-cyan-600' : 'text-slate-400'}`}>
-              {showLegacy ? '是' : '否'}
-            </span>
           </div>
         </div>
       </GlassCard>
-
-      {/* WLC Doc Embed (avoid backdrop-filter wrapper to keep iframe interactions reliable on mobile) */}
-      {showLegacy && (
-        <div className="bg-white border border-slate-200 shadow-[0_4px_20px_-4px_rgba(6,182,212,0.12)] rounded-3xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
-            <div className="text-sm font-extrabold text-slate-800">旧乌龙茶文档</div>
-            <button
-              type="button"
-              onClick={toggleLegacy}
-              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-extrabold hover:bg-slate-50"
-            >
-              收起
-            </button>
-          </div>
-          <div className="p-3">
-            {!docReady ? (
-              <div className="h-[70vh] md:h-[78vh] flex items-center justify-center text-slate-500 font-semibold">
-                正在加载文档…
-              </div>
-            ) : (
-              <iframe
-                title="乌龙茶课程评价文档"
-                src="/wlcdoc/"
-                className="w-full h-[70vh] md:h-[78vh] rounded-2xl bg-white border border-slate-200"
-                style={{ pointerEvents: 'auto' }}
-              />
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Loading State */}
       {loading && (
