@@ -151,7 +151,17 @@ export default function WriteReview() {
         walletUserHash: wallet?.userHash || ''
       })
       if (res.success) {
-        alert('点评提交成功！')
+        const credit = res?.creditReward
+        if (credit && credit.skipped !== true) {
+          if (credit.ok) {
+            alert('点评提交成功！评课激励 +5 已发放到积分钱包。')
+          } else {
+            const reason = credit.error ? `（${String(credit.error).slice(0, 120)}）` : ''
+            alert(`点评提交成功，但评课激励发放失败${reason}`)
+          }
+        } else {
+          alert('点评提交成功！')
+        }
         // 清除草稿
         if (id) {
           localStorage.removeItem(`review_draft_${id}`)

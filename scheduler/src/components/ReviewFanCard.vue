@@ -12,8 +12,31 @@
             <div class="text-[11px] text-slate-500 truncate">{{ semester }}</div>
           </div>
         </div>
-        <div class="shrink-0 text-[11px] text-slate-600">
-          <span v-if="typeof review?.rating === 'number'">评分 {{ review.rating }}</span>
+        <div class="shrink-0 flex items-center gap-2">
+          <span v-if="typeof review?.rating === 'number'" class="text-[11px] text-slate-600">评分 {{ review.rating }}</span>
+          <button
+            v-if="enableLike"
+            type="button"
+            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-extrabold transition-colors"
+            :class="liked ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
+            :disabled="likeLoading"
+            @click.stop.prevent="onToggle"
+            aria-label="点赞"
+          >
+            <svg
+              class="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M7 11v10H3V11h4z" />
+              <path d="M7 11l5-7a2 2 0 013 2l-1 5h5a2 2 0 012 2l-2 7a2 2 0 01-2 2H7" />
+            </svg>
+            <span>{{ likeCount }}</span>
+          </button>
         </div>
       </div>
 
@@ -31,6 +54,9 @@ export default {
   name: 'ReviewFanCard',
   props: {
     review: { type: Object, required: true },
+    enableLike: { type: Boolean, default: false },
+    likeLoading: { type: Boolean, default: false },
+    onToggleLike: { type: Function, default: null },
   },
   computed: {
     reviewerName(): string {
@@ -52,6 +78,20 @@ export default {
     commentHtml(): string {
       return renderMarkdown(this.comment || '')
     },
+    liked(): boolean {
+      // @ts-ignore
+      return Boolean(this.review?.liked)
+    },
+    likeCount(): number {
+      // @ts-ignore
+      return Number(this.review?.like_count || 0)
+    },
+  },
+  methods: {
+    onToggle() {
+      // @ts-ignore
+      if (typeof this.onToggleLike === 'function') this.onToggleLike(this.review)
+    }
   }
 }
 </script>

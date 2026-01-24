@@ -488,6 +488,7 @@ app.get('/api/course/by-code/:code', async (c) => {
     const code = (c.req.param('code') || '').trim()
     if (!code) return c.json({ error: 'Missing code' }, 400)
     const teacherName = (c.req.query('teacherName') || '').trim()
+    const clientId = (c.req.query('clientId') || '').trim()
 
     // ICU 显示开关
     const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
@@ -600,6 +601,27 @@ app.get('/api/course/by-code/:code', async (c) => {
       .all()
     const reviewsWithSqid = addSqidToReviews(reviews.results || [])
 
+    // 是否点赞（可选）
+    let likedSet = new Set<number>()
+    if (clientId && (reviewsWithSqid || []).length > 0) {
+      await ensureReviewLikesTable(c.env.DB)
+      const ids = (reviewsWithSqid || []).map((r: any) => Number(r?.id)).filter((n) => Number.isFinite(n))
+      if (ids.length > 0) {
+        const placeholders2 = ids.map(() => '?').join(',')
+        const likedRows = await c.env.DB
+          .prepare(`SELECT review_id FROM review_likes WHERE client_id = ? AND review_id IN (${placeholders2})`)
+          .bind(clientId, ...ids)
+          .all()
+        likedSet = new Set<number>((likedRows.results || []).map((r: any) => Number(r.review_id)))
+      }
+    }
+
+    const mappedReviews = (reviewsWithSqid || []).map((r: any) => ({
+      ...r,
+      like_count: Number(r?.approve_count || 0),
+      liked: clientId ? likedSet.has(Number(r?.id)) : false
+    }))
+
     const countRow = await c.env.DB
       .prepare(`SELECT COUNT(*) as cnt FROM reviews WHERE ${baseWhere}`)
       .bind(...idList)
@@ -642,7 +664,7 @@ app.get('/api/course/by-code/:code', async (c) => {
       review_count: Number(countRow?.cnt || 0),
       review_avg: avgRow?.avg === null || avgRow?.avg === undefined ? 0 : Number(avgRow.avg),
       semesters,
-      reviews: reviewsWithSqid
+      reviews: mappedReviews
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)

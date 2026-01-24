@@ -234,10 +234,11 @@ export default function Course() {
                       stroke="currentColor"
                       strokeWidth="2"
                     >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 11v10H3V11h4z" />
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        d="M14 9l-3 3m0 0l-3-3m3 3V4m8 8a8 8 0 11-16 0 8 8 0 0116 0z"
+                        d="M7 11l5-7a2 2 0 013 2l-1 5h5a2 2 0 012 2l-2 7a2 2 0 01-2 2H7"
                       />
                     </svg>
                     <span>{Number(review.like_count || 0)}</span>

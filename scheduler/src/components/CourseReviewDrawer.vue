@@ -45,7 +45,7 @@
                   <div class="fan-center-wrap">
                     <transition :name="fanTransitionName" mode="out-in">
                       <div class="fan-card fan-center" :key="currentKey">
-                        <ReviewFanCard :review="currentReview" />
+                        <ReviewFanCard :review="currentReview" :enableLike="true" :likeLoading="likeBusy" :onToggleLike="toggleLike" />
                       </div>
                     </transition>
 
@@ -122,8 +122,23 @@
                 <span>{{ r.reviewer_name || '匿名用户' }}</span>
                 <span v-if="r.semester" class="ml-2">{{ r.semester }}</span>
               </div>
-              <div class="text-xs text-gray-600">
-                <span v-if="typeof r.rating === 'number'">评分 {{ r.rating }}</span>
+              <div class="flex items-center gap-2">
+                <span v-if="typeof r.rating === 'number'" class="text-xs text-gray-600">评分 {{ r.rating }}</span>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-extrabold transition-colors"
+                  :class="r.liked ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
+                  :disabled="likeBusy"
+                  @click.stop.prevent="toggleLike(r)"
+                  aria-label="点赞"
+                  title="点赞"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M7 11v10H3V11h4z" />
+                    <path d="M7 11l5-7a2 2 0 013 2l-1 5h5a2 2 0 012 2l-2 7a2 2 0 01-2 2H7" />
+                  </svg>
+                  <span>{{ Number(r.like_count || 0) }}</span>
+                </button>
               </div>
             </div>
             <div class="review-markdown text-sm break-words" v-html="renderComment(r.comment || '')"></div>
@@ -142,6 +157,7 @@
 import axios from 'axios'
 import ReviewFanCard from './ReviewFanCard.vue'
 import { renderMarkdown } from '@/utils/markdown'
+import { getOrCreateClientId } from '@/utils/clientId'
 
 type Review = {
   id?: number
@@ -151,6 +167,8 @@ type Review = {
   comment?: string
   reviewer_name?: string
   reviewer_avatar?: string
+  like_count?: number
+  liked?: boolean
 }
 
 export default {
@@ -172,6 +190,8 @@ export default {
       lastDir: 'next' as 'next' | 'prev',
       isMobile: false,
       navLockUntil: 0,
+      clientId: '' as string,
+      likeBusy: false,
     }
   },
   computed: {
@@ -210,6 +230,7 @@ export default {
     }
   },
   mounted() {
+    this.clientId = getOrCreateClientId()
     const updateDevice = () => {
       const width = Math.min(
         window.innerWidth || 0,
@@ -265,8 +286,11 @@ export default {
       try {
         const code = encodeURIComponent(this.courseCode)
         const tn = String(this.teacherName || '').trim()
-        const qs = tn ? `?teacherName=${encodeURIComponent(tn)}` : ''
-        const res = await axios.get(`/api/course/by-code/${code}${qs}`)
+        const params: any = {}
+        if (tn) params.teacherName = tn
+        if (this.clientId) params.clientId = this.clientId
+        const qs = new URLSearchParams(params).toString()
+        const res = await axios.get(`/api/course/by-code/${code}${qs ? `?${qs}` : ''}`)
         const data = res.data || {}
         this.summary = {
           review_avg: data.review_avg,
@@ -278,6 +302,34 @@ export default {
         this.error = msg
       } finally {
         this.loading = false
+      }
+    },
+    async toggleLike(r: any) {
+      if (!r || !r.id) return
+      if (!this.clientId) this.clientId = getOrCreateClientId()
+      if (this.likeBusy) return
+      this.likeBusy = true
+      try {
+        const id = Number(r.id)
+        const nextLiked = !Boolean(r.liked)
+
+        // optimistic update
+        this.reviews = this.reviews.map((x: any) =>
+          Number(x.id) === id
+            ? { ...x, liked: nextLiked, like_count: Math.max(0, Number(x.like_count || 0) + (nextLiked ? 1 : -1)) }
+            : x
+        )
+
+        const res = nextLiked
+          ? await axios.post(`/api/review/${id}/like`, { clientId: this.clientId })
+          : await axios.delete(`/api/review/${id}/like`, { data: { clientId: this.clientId } })
+
+        const likeCount = Number(res?.data?.like_count ?? 0)
+        this.reviews = this.reviews.map((x: any) => (Number(x.id) === id ? { ...x, liked: nextLiked, like_count: likeCount } : x))
+      } catch (_e) {
+        // ignore; state will be corrected next fetch
+      } finally {
+        this.likeBusy = false
       }
     }
   },
