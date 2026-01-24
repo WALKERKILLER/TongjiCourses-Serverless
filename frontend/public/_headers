@@ -1,0 +1,9 @@
+/wlcdoc/*.js
+  Content-Type: application/javascript; charset=utf-8
+
+/wlcdoc/assets/*.js
+  Content-Type: application/javascript; charset=utf-8
+
+/wlcdoc/assets/chunks/*.js
+  Content-Type: application/javascript; charset=utf-8
+

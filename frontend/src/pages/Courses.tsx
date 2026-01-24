@@ -205,7 +205,7 @@ export default function Courses() {
             ) : (
               <iframe
                 title="乌龙茶课程评价文档"
-                src="/wlcdoc/index.html"
+                src="/wlcdoc/"
                 className="w-full h-[70vh] md:h-[78vh] rounded-2xl bg-white border border-slate-200"
                 style={{ pointerEvents: 'auto' }}
               />
