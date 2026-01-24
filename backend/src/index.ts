@@ -86,6 +86,19 @@ async function ensureCourseAliasesTable(db: D1Database) {
     "CREATE TABLE IF NOT EXISTS course_aliases (system TEXT NOT NULL, alias TEXT NOT NULL, course_id INTEGER NOT NULL, created_at INTEGER DEFAULT (strftime('%s','now')), PRIMARY KEY (system, alias))"
   ).run()
   await db.prepare('CREATE INDEX IF NOT EXISTS idx_course_aliases_course_id ON course_aliases(course_id)').run()
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_course_aliases_system_alias ON course_aliases(system, alias)').run()
+}
+
+async function ensurePkSearchIndexes(db: D1Database) {
+  // Best-effort: some deployments may not have pk tables yet.
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_coursedetail_courseCode ON coursedetail(courseCode)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_coursedetail_newCourseCode ON coursedetail(newCourseCode)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_coursedetail_courseName ON coursedetail(courseName)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_coursedetail_campus ON coursedetail(campus)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_coursedetail_faculty ON coursedetail(faculty)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_teacher_teachingClassId ON teacher(teachingClassId)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_teacher_teacherName ON teacher(teacherName)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_teacher_teacherCode ON teacher(teacherCode)').run() } catch {}
 }
 
 async function ensureReviewLikesTable(db: D1Database) {
@@ -228,6 +241,7 @@ app.get('/api/departments', async (c) => {
 app.get('/api/courses', async (c) => {
   try {
     await ensureCourseAliasesTable(c.env.DB)
+    await ensurePkSearchIndexes(c.env.DB)
     await ensureLegacyAutoDocsPurged(c.env.DB)
     const keyword = c.req.query('q')
     const departments = c.req.query('departments') // 逗号分隔的开课单位列表
@@ -246,6 +260,7 @@ app.get('/api/courses', async (c) => {
     const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
     const showIcu = setting?.value === 'true'
 
+    let withClause = ''
     let baseWhere = ' WHERE 1=1'
     const params: any[] = []
 
@@ -277,19 +292,6 @@ app.get('/api/courses', async (c) => {
       const pkWhere: string[] = []
       const pkParams: any[] = []
 
-      pkWhere.push(`
-        (
-          cd.courseCode = c.code
-          OR cd.newCourseCode = c.code
-          OR EXISTS (
-            SELECT 1 FROM course_aliases a
-            WHERE a.system = 'onesystem'
-              AND a.course_id = c.id
-              AND (a.alias = cd.courseCode OR a.alias = cd.newCourseCode)
-          )
-        )
-      `)
-
       if (courseName) {
         pkWhere.push('cd.courseName LIKE ?')
         pkParams.push(`%${courseName}%`)
@@ -311,8 +313,27 @@ app.get('/api/courses', async (c) => {
         pkParams.push(`%${teacherCode}%`)
       }
 
-      baseWhere += ` AND EXISTS (SELECT 1 FROM coursedetail cd WHERE ${pkWhere.join(' AND ')})`
-      params.push(...pkParams)
+      const pkExtraWhere = pkWhere.length > 0 ? ` AND ${pkWhere.join(' AND ')}` : ''
+
+      // Use a CTE to avoid a correlated EXISTS per course row (much faster on large pk tables).
+      withClause = `
+        WITH pk_match AS (
+          SELECT DISTINCT c2.id AS id
+          FROM courses c2
+          JOIN coursedetail cd ON (cd.courseCode = c2.code OR cd.newCourseCode = c2.code)
+          WHERE 1=1${pkExtraWhere}
+          UNION
+          SELECT DISTINCT a.course_id AS id
+          FROM course_aliases a
+          JOIN coursedetail cd ON (a.alias = cd.courseCode OR a.alias = cd.newCourseCode)
+          WHERE a.system = 'onesystem'${pkExtraWhere}
+        )
+      `
+
+      baseWhere += ` AND c.id IN (SELECT id FROM pk_match)`
+
+      // pkExtraWhere appears twice in the UNION, so bind params twice (and before the main query params).
+      params.unshift(...pkParams, ...pkParams)
     }
 
     // 开课单位筛选
@@ -341,7 +362,7 @@ app.get('/api/courses', async (c) => {
         ${having}
       ) x
     `
-    const countResult = await c.env.DB.prepare(countQuery).bind(...params).first<{ total: number }>()
+    const countResult = await c.env.DB.prepare(`${withClause}${countQuery}`).bind(...params).first<{ total: number }>()
     const total = countResult?.total || 0
 
     const query = `
@@ -379,7 +400,7 @@ app.get('/api/courses', async (c) => {
       ORDER BY review_count DESC
       LIMIT ? OFFSET ?
     `
-    const { results } = await c.env.DB.prepare(query).bind(...params, limit, offset).all()
+    const { results } = await c.env.DB.prepare(`${withClause}${query}`).bind(...params, limit, offset).all()
 
     const normalized = (results || []).map((r: any) => ({
       ...r,

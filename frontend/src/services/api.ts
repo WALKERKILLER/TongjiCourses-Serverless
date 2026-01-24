@@ -42,7 +42,10 @@ export async function fetchCourses(
   if (filters?.teacherCode) url += `teacherCode=${encodeURIComponent(filters.teacherCode)}&`
   if (filters?.campus) url += `campus=${encodeURIComponent(filters.campus)}&`
   if (filters?.faculty) url += `faculty=${encodeURIComponent(filters.faculty)}&`
-  const res = await fetchWithTimeout(url, undefined, 15000)
+  const needHeavyFilter = Boolean(
+    filters?.courseName || filters?.teacherName || filters?.teacherCode || filters?.campus || filters?.faculty
+  )
+  const res = await fetchWithTimeout(url, undefined, needHeavyFilter ? 25000 : 15000)
   if (!res.ok) throw new Error('Failed to fetch courses')
   return res.json()
 }

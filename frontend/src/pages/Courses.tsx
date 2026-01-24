@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { fetchCourses, fetchDepartments } from '../services/api'
 import GlassCard from '../components/GlassCard'
@@ -33,6 +33,16 @@ export default function Courses() {
     }
   })
   const [legacyLoaded, setLegacyLoaded] = useState(false)
+  const [legacyReady, setLegacyReady] = useState(false)
+  const [legacyProgress, setLegacyProgress] = useState(0)
+  const [legacyIsFirstOpen, setLegacyIsFirstOpen] = useState(() => {
+    try {
+      return localStorage.getItem('yourtj_wlc_first_ready') !== '1'
+    } catch {
+      return true
+    }
+  })
+  const legacyIframeRef = useRef<HTMLIFrameElement | null>(null)
   const legacyUrl = '/wlc/'
 
   const openLegacyDocsInNewWindow = () => {
@@ -103,10 +113,63 @@ export default function Courses() {
   useEffect(() => {
     if (!showLegacyDocs) {
       setLegacyLoaded(false)
+      setLegacyReady(false)
+      setLegacyProgress(0)
       return
     }
     setLegacyLoaded(false)
+    setLegacyReady(false)
+    setLegacyProgress(0)
   }, [showLegacyDocs])
+
+  useEffect(() => {
+    if (!showLegacyDocs) return
+    if (!legacyIsFirstOpen) return
+
+    let p = 0
+    setLegacyProgress(0)
+
+    const t = setInterval(() => {
+      // ease-in to ~92% while waiting for the actual "ready" signal
+      const target = 92
+      const step = Math.max(0.6, (target - p) * 0.12)
+      p = Math.min(target, p + step)
+      setLegacyProgress(p)
+    }, 120)
+
+    return () => clearInterval(t)
+  }, [showLegacyDocs, legacyIsFirstOpen])
+
+  useEffect(() => {
+    if (!showLegacyDocs) return
+    if (!legacyLoaded) return
+
+    let tries = 0
+    const t = setInterval(() => {
+      tries += 1
+      const doc = legacyIframeRef.current?.contentDocument
+      if (doc?.querySelector('.DocSearch-Button')) {
+        clearInterval(t)
+        setLegacyReady(true)
+        setLegacyProgress(100)
+        if (legacyIsFirstOpen) {
+          setLegacyIsFirstOpen(false)
+          try {
+            localStorage.setItem('yourtj_wlc_first_ready', '1')
+          } catch {
+            // ignore
+          }
+        }
+        return
+      }
+      if (tries > 160) {
+        // give up after ~40s; keep showing loading state
+        clearInterval(t)
+      }
+    }, 250)
+
+    return () => clearInterval(t)
+  }, [showLegacyDocs, legacyLoaded, legacyIsFirstOpen])
 
   // 每次返回首页时刷新数据和开课单位列表
   useEffect(() => {
@@ -189,6 +252,27 @@ export default function Courses() {
 
       {showLegacyDocs && (
         <div className="bg-white border border-slate-200 shadow-[0_4px_20px_-4px_rgba(6,182,212,0.12)] rounded-3xl overflow-hidden">
+          {legacyIsFirstOpen && !legacyReady && (
+            <div className="px-5 pt-5">
+              <div className="overflow-hidden rounded-2xl border border-orange-100 bg-orange-50/90">
+                <div className="px-4 py-3 text-sm font-semibold text-orange-800">
+                  首次加载乌龙茶文档需要一段时间，请耐心等待，当看到“搜索课程或教师”的搜索框时即可正常使用
+                </div>
+                <div className="relative h-2 bg-orange-100/70">
+                  <div
+                    className="h-full bg-gradient-to-r from-orange-400 to-orange-500 wlc-wave"
+                    style={{ width: `${Math.max(0, Math.min(100, legacyProgress))}%` }}
+                  />
+                  <img
+                    src="/favicon.svg"
+                    alt=""
+                    className="md:hidden absolute top-1/2 -translate-y-1/2 w-4 h-4 drop-shadow"
+                    style={{ left: `calc(${Math.max(0, Math.min(100, legacyProgress))}% - 10px)` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
             <div className="text-sm font-extrabold text-slate-800">旧乌龙茶文档</div>
             <div className="flex items-center gap-3">
@@ -218,9 +302,27 @@ export default function Courses() {
               title="乌龙茶课程评价文档"
               src={legacyUrl}
               className="w-full h-[calc(100vh-220px)] md:h-[calc(100vh-240px)] bg-white"
+              ref={legacyIframeRef}
               onLoad={() => setLegacyLoaded(true)}
             />
           </div>
+          <style>{`
+            @keyframes wlcWaveMove {
+              0% { background-position: 0 0; }
+              100% { background-position: 40px 0; }
+            }
+            .wlc-wave {
+              background-image: repeating-linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.40) 0px,
+                rgba(255, 255, 255, 0.40) 10px,
+                rgba(255, 255, 255, 0.00) 10px,
+                rgba(255, 255, 255, 0.00) 20px
+              );
+              background-size: 40px 40px;
+              animation: wlcWaveMove 1.1s linear infinite;
+            }
+          `}</style>
         </div>
       )}
 
