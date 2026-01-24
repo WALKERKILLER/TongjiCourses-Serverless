@@ -184,10 +184,10 @@ export default function Courses() {
         </div>
       </GlassCard>
 
-      {/* WLC Doc Embed */}
+      {/* WLC Doc Embed (avoid backdrop-filter wrapper to keep iframe interactions reliable on mobile) */}
       {showLegacy && (
-        <GlassCard hover={false} className="bg-white/70 border border-white/60 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="bg-white border border-slate-200 shadow-[0_4px_20px_-4px_rgba(6,182,212,0.12)] rounded-3xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
             <div className="text-sm font-extrabold text-slate-800">旧乌龙茶文档</div>
             <button
               type="button"
@@ -199,7 +199,7 @@ export default function Courses() {
           </div>
           <div className="p-3">
             {!docReady ? (
-              <div className="h-[60vh] md:h-[70vh] flex items-center justify-center text-slate-500 font-semibold">
+              <div className="h-[70vh] md:h-[78vh] flex items-center justify-center text-slate-500 font-semibold">
                 正在加载文档…
               </div>
             ) : (
@@ -207,10 +207,11 @@ export default function Courses() {
                 title="乌龙茶课程评价文档"
                 src="/wlcdoc/index.html"
                 className="w-full h-[70vh] md:h-[78vh] rounded-2xl bg-white border border-slate-200"
+                style={{ pointerEvents: 'auto' }}
               />
             )}
           </div>
-        </GlassCard>
+        </div>
       )}
 
       {/* Loading State */}
