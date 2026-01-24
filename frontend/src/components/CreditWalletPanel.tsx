@@ -30,10 +30,27 @@ export default function CreditWalletPanel() {
     return msg
   }
 
+  const openPanel = () => {
+    window.dispatchEvent(new CustomEvent('yourtj-floating-open', { detail: { panel: 'wallet' } }))
+    setIsOpen(true)
+  }
+
   useEffect(() => {
-    const onOpen = () => setIsOpen(true)
+    const onOpen = () => openPanel()
     window.addEventListener('open-credit-wallet', onOpen as any)
     return () => window.removeEventListener('open-credit-wallet', onOpen as any)
+  }, [])
+
+  useEffect(() => {
+    const onOtherOpen = (e: any) => {
+      const panel = String(e?.detail?.panel || '')
+      if (panel === 'filter') {
+        setIsOpen(false)
+        setEmbedOpen(false)
+      }
+    }
+    window.addEventListener('yourtj-floating-open', onOtherOpen as any)
+    return () => window.removeEventListener('yourtj-floating-open', onOtherOpen as any)
   }, [])
 
   useEffect(() => {
@@ -49,7 +66,7 @@ export default function CreditWalletPanel() {
       setBalance(null)
       setSummary(null)
       setEmbedOpen(false)
-      setIsOpen(true)
+      openPanel()
       void refresh(data.wallet.userHash)
     }
 
@@ -294,7 +311,7 @@ const handleBind = async () => {
         >
           <button
             type="button"
-            onClick={() => setIsOpen((v) => !v)}
+            onClick={() => (isOpen ? setIsOpen(false) : openPanel())}
             className="relative w-full p-3 flex items-center justify-center hover:bg-slate-50 rounded-2xl transition-colors"
             title={isOpen ? '收起钱包' : '打开钱包'}
           >
@@ -313,7 +330,7 @@ const handleBind = async () => {
       <div className="md:hidden fixed right-4 bottom-40 z-50">
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
+          onClick={openPanel}
           className="relative w-14 h-14 rounded-2xl bg-white/90 backdrop-blur-xl border border-white/50 shadow-xl flex items-center justify-center active:scale-95 transition-transform"
           aria-label="打开积分钱包"
         >
