@@ -32,6 +32,7 @@ export default function Courses() {
       return false
     }
   })
+  const [docReady, setDocReady] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -46,12 +47,11 @@ export default function Courses() {
     campus: '',
   })
 
-  const search = async (legacy?: boolean, p = 1) => {
+  const search = async (_legacy?: boolean, p = 1) => {
     setLoading(true)
     setError('')
     try {
-      const useL = legacy !== undefined ? legacy : showLegacy
-      const data = await fetchCourses(keyword, useL, p, 20, {
+      const data = await fetchCourses(keyword, undefined, p, 20, {
         departments: filters.selectedDepartments,
         onlyWithReviews: filters.onlyWithReviews,
         courseName: filters.courseName,
@@ -75,10 +75,9 @@ export default function Courses() {
   }
 
   // 加载开课单位列表
-  const loadDepartments = async (legacy?: boolean) => {
+  const loadDepartments = async (_legacy?: boolean) => {
     try {
-      const useL = legacy !== undefined ? legacy : showLegacy
-      const data = await fetchDepartments(useL)
+      const data = await fetchDepartments(undefined)
       setDepartments(data.departments || [])
     } catch (err) {
       console.error('Failed to fetch departments:', err)
@@ -96,6 +95,17 @@ export default function Courses() {
     search(undefined, 1)
   }, [filters])
 
+  // 打开开关后一会再加载文档 iframe，避免一闪而过
+  useEffect(() => {
+    if (!showLegacy) {
+      setDocReady(false)
+      return
+    }
+    setDocReady(false)
+    const t = setTimeout(() => setDocReady(true), 900)
+    return () => clearTimeout(t)
+  }, [showLegacy])
+
   // 每次返回首页时刷新数据和开课单位列表
   useEffect(() => {
     if (location.pathname === '/') {
@@ -103,11 +113,6 @@ export default function Courses() {
       loadDepartments()
     }
   }, [location.key])
-
-  // 切换legacy时重新加载开课单位列表
-  useEffect(() => {
-    loadDepartments()
-  }, [showLegacy])
 
   const toggleLegacy = () => {
     const newValue = !showLegacy
@@ -117,16 +122,6 @@ export default function Courses() {
     } catch {
       // ignore
     }
-    setFilters({
-      selectedDepartments: [],
-      onlyWithReviews: false,
-      courseName: '',
-      courseCode: '',
-      teacherCode: '',
-      teacherName: '',
-      campus: ''
-    }) // 重置筛选
-    search(newValue, 1)
   }
 
   return (
@@ -189,6 +184,35 @@ export default function Courses() {
         </div>
       </GlassCard>
 
+      {/* WLC Doc Embed */}
+      {showLegacy && (
+        <GlassCard hover={false} className="bg-white/70 border border-white/60 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="text-sm font-extrabold text-slate-800">旧乌龙茶文档</div>
+            <button
+              type="button"
+              onClick={toggleLegacy}
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-extrabold hover:bg-slate-50"
+            >
+              收起
+            </button>
+          </div>
+          <div className="p-3">
+            {!docReady ? (
+              <div className="h-[60vh] md:h-[70vh] flex items-center justify-center text-slate-500 font-semibold">
+                正在加载文档…
+              </div>
+            ) : (
+              <iframe
+                title="乌龙茶课程评价文档"
+                src="/wlcdoc/index.html"
+                className="w-full h-[70vh] md:h-[78vh] rounded-2xl bg-white border border-slate-200"
+              />
+            )}
+          </div>
+        </GlassCard>
+      )}
+
       {/* Loading State */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16">
@@ -216,11 +240,6 @@ export default function Courses() {
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-slate-800">
               课程列表
-              {showLegacy && (
-                <span className="ml-2 text-xs font-normal text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
-                  含旧乌龙茶文档
-                </span>
-              )}
             </h3>
             <span className="text-sm text-slate-400">共 {total} 门课程</span>
           </div>
@@ -229,7 +248,7 @@ export default function Courses() {
             {courses.map((course) => (
               <Link
                 key={course.id}
-                to={`/course/${course.id}${showLegacy ? '?legacy=1' : ''}`}
+                to={`/course/${course.id}`}
                 style={{ contentVisibility: 'auto', containIntrinsicSize: '0 180px' }}
               >
                 <GlassCard className="h-[180px] flex flex-col justify-between group">
@@ -292,7 +311,7 @@ export default function Courses() {
           {courses.length === 0 && (
             <div className="text-center py-20 bg-white/50 rounded-3xl border border-dashed border-slate-300">
               <p className="text-slate-400">
-                {showLegacy ? '旧乌龙茶文档中没有找到相关课程' : '没有找到相关课程，换个关键词试试？'}
+                没有找到相关课程，换个关键词试试？
               </p>
             </div>
           )}

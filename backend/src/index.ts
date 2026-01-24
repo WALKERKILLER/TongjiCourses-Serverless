@@ -200,7 +200,6 @@ app.get('/api/settings/show_icu', async (c) => {
 app.get('/api/departments', async (c) => {
   try {
     await ensureLegacyAutoDocsPurged(c.env.DB)
-    const legacy = c.req.query('legacy')
 
     // 检查是否显示 is_icu 数据
     const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
@@ -213,10 +212,6 @@ app.get('/api/departments', async (c) => {
       whereClause += ' AND (is_icu = 0 OR is_icu IS NULL)'
     }
 
-    // legacy=true: include legacy docs and merge into normal view
-    if (legacy !== 'true') {
-      whereClause += ' AND is_legacy = 0'
-    }
     // safety: ignore any leftover AUTO legacy docs (should have been purged)
     whereClause += " AND NOT (is_legacy = 1 AND code LIKE '%AUTO%')"
 
@@ -235,8 +230,6 @@ app.get('/api/courses', async (c) => {
     await ensureCourseAliasesTable(c.env.DB)
     await ensureLegacyAutoDocsPurged(c.env.DB)
     const keyword = c.req.query('q')
-    const legacy = c.req.query('legacy')
-    const includeLegacy = legacy === 'true'
     const departments = c.req.query('departments') // 逗号分隔的开课单位列表
     const onlyWithReviews = c.req.query('onlyWithReviews') === 'true'
     const courseName = (c.req.query('courseName') || '').trim()
@@ -261,8 +254,6 @@ app.get('/api/courses', async (c) => {
       baseWhere += ' AND (c.is_icu = 0 OR c.is_icu IS NULL)'
     }
 
-    // 默认不包含 legacy 文档；legacy=true 时包含并在结果中做合并展示
-    if (!includeLegacy) baseWhere += ' AND c.is_legacy = 0'
     // safety: ignore any leftover AUTO legacy docs (should have been purged)
     baseWhere += " AND NOT (c.is_legacy = 1 AND c.code LIKE '%AUTO%')"
 
@@ -334,64 +325,9 @@ app.get('/api/courses', async (c) => {
       }
     }
 
-    if (!includeLegacy) {
-      // 只看有评价的课程（normal 模式可直接用 courses.review_count）
-      if (onlyWithReviews) {
-        baseWhere += ' AND c.review_count > 0'
-      }
-
-      // 获取总数
-      const countQuery = `SELECT COUNT(*) as total FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${baseWhere}`
-      const countResult = await c.env.DB.prepare(countQuery).bind(...params).first<{total: number}>()
-      const total = countResult?.total || 0
-
-      // 获取分页数据
-      const query = `
-        SELECT
-          c.id,
-          c.code,
-          c.name,
-          c.review_avg as rating,
-          c.review_count,
-          c.is_legacy,
-          t.name as teacher_name,
-          (
-            SELECT GROUP_CONCAT(x.calendarName, '||') FROM (
-              SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
-              FROM coursedetail cd2
-              JOIN calendar ca ON ca.calendarId = cd2.calendarId
-              WHERE (
-                cd2.courseCode = c.code
-                OR cd2.newCourseCode = c.code
-                OR EXISTS (
-                  SELECT 1 FROM course_aliases a
-                  WHERE a.system = 'onesystem'
-                    AND a.course_id = c.id
-                    AND (a.alias = cd2.courseCode OR a.alias = cd2.newCourseCode)
-                )
-              )
-              ORDER BY cd2.calendarId DESC
-            ) x
-          ) as semester_names
-        FROM courses c LEFT JOIN teachers t ON c.teacher_id = t.id ${baseWhere}
-        ORDER BY c.review_count DESC LIMIT ? OFFSET ?
-      `
-      const { results } = await c.env.DB.prepare(query).bind(...params, limit, offset).all()
-
-      const normalized = (results || []).map((r: any) => ({
-        ...r,
-        semesters: String(r.semester_names || '')
-          .split('||')
-          .map((s: string) => s.trim())
-          .filter(Boolean)
-      }))
-
-      return c.json({ data: normalized, total, page, limit, totalPages: Math.ceil(total / limit) })
-    }
-
-    // include legacy docs: merge by (courseCode + courseName + teacherName)
+    // Always include legacy docs into the normal view, and merge by (courseName + teacherName).
     const reviewJoin = `LEFT JOIN reviews r ON r.course_id = c.id AND r.is_hidden = 0 ${showIcu ? '' : 'AND (r.is_icu = 0 OR r.is_icu IS NULL)'}`
-    const groupKey = `c.code, c.name, COALESCE(t.name, '')`
+    const groupKey = `c.name, COALESCE(t.name, '')`
     const having = onlyWithReviews ? 'HAVING COUNT(r.id) > 0' : ''
 
     const countQuery = `
@@ -410,8 +346,14 @@ app.get('/api/courses', async (c) => {
 
     const query = `
       SELECT
-        COALESCE(MIN(CASE WHEN c.is_legacy = 0 THEN c.id END), MIN(c.id)) as id,
-        c.code,
+        CAST(substr(COALESCE(
+          MAX(CASE WHEN c.is_legacy = 0 THEN printf('%010d|%s', c.id, c.code) END),
+          MAX(printf('%010d|%s', c.id, c.code))
+        ), 1, 10) AS INTEGER) as id,
+        substr(COALESCE(
+          MAX(CASE WHEN c.is_legacy = 0 THEN printf('%010d|%s', c.id, c.code) END),
+          MAX(printf('%010d|%s', c.id, c.code))
+        ), 12) as code,
         c.name,
         COALESCE(AVG(CASE WHEN r.rating > 0 THEN r.rating END), 0) as rating,
         COUNT(r.id) as review_count,
@@ -458,7 +400,6 @@ app.get('/api/course/:id', async (c) => {
     await ensureCourseAliasesTable(c.env.DB)
     await ensureLegacyAutoDocsPurged(c.env.DB)
     const id = c.req.param('id')
-    const includeLegacy = c.req.query('legacy') === 'true'
 
     // 检查是否显示乌龙茶数据
     const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
@@ -472,10 +413,6 @@ app.get('/api/course/:id', async (c) => {
 
     if (!course) return c.json({ error: 'Course not found' }, 404)
 
-    if (!includeLegacy && Number((course as any).is_legacy || 0) === 1) {
-      return c.json({ error: 'Course not found' }, 404)
-    }
-
     if (Number((course as any).is_legacy || 0) === 1 && String((course as any).code || '').includes('AUTO')) {
       return c.json({ error: 'Course not found' }, 404)
     }
@@ -486,22 +423,30 @@ app.get('/api/course/:id', async (c) => {
     }
 
     // 评价匹配策略（跨学期）：
-    // - 同课程 code
-    // - 同课程名 + 同教师（如果有教师）
-    const matchedIds = new Set<number>([Number((course as any).id)])
+    // - 同课程名 + 同教师（教师名；可不同学期/课号）
+    // - 若教师缺失：回退到同 code
+    const matchedIds = new Set<number>()
+    const teacherName = String((course as any).teacher_name || '').trim()
 
-    const sameCodeRows = await c.env.DB
-      .prepare(`SELECT id FROM courses WHERE code = ? ${includeLegacy ? '' : 'AND is_legacy = 0'} AND NOT (is_legacy = 1 AND code LIKE '%AUTO%')`)
-      .bind((course as any).code)
-      .all<{ id: number }>()
-    for (const r of sameCodeRows.results || []) matchedIds.add(Number((r as any).id))
-
-    if ((course as any).teacher_id) {
-      const sameNameTeacherRows = await c.env.DB
-        .prepare(`SELECT id FROM courses WHERE name = ? AND teacher_id = ? ${includeLegacy ? '' : 'AND is_legacy = 0'} AND NOT (is_legacy = 1 AND code LIKE '%AUTO%')`)
-        .bind((course as any).name, (course as any).teacher_id)
+    if (teacherName) {
+      const rows = await c.env.DB
+        .prepare(
+          `SELECT c.id as id
+           FROM courses c
+           LEFT JOIN teachers t ON c.teacher_id = t.id
+           WHERE c.name = ?
+             AND COALESCE(t.name, '') = ?
+             AND NOT (c.is_legacy = 1 AND c.code LIKE '%AUTO%')`
+        )
+        .bind((course as any).name, teacherName)
         .all<{ id: number }>()
-      for (const r of sameNameTeacherRows.results || []) matchedIds.add(Number((r as any).id))
+      for (const r of rows.results || []) matchedIds.add(Number((r as any).id))
+    } else {
+      const rows = await c.env.DB
+        .prepare(`SELECT id FROM courses WHERE code = ? AND NOT (is_legacy = 1 AND code LIKE '%AUTO%')`)
+        .bind((course as any).code)
+        .all<{ id: number }>()
+      for (const r of rows.results || []) matchedIds.add(Number((r as any).id))
     }
 
     const idList = Array.from(matchedIds).filter((n) => Number.isFinite(n))
