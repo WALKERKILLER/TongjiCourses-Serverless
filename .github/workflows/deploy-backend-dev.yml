@@ -20,6 +20,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ADMIN_SECRET: ${{ secrets.JCOURSE_ADMIN_SECRET }}
+      CREDIT_API_BASE: ${{ secrets.CREDIT_API_BASE }}
+      CREDIT_JCOURSE_SECRET: ${{ secrets.CREDIT_JCOURSE_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +42,12 @@ jobs:
             exit 1
           fi
           echo "$ADMIN_SECRET" | npx wrangler secret put ADMIN_SECRET --env dev
+          if [ -n "${CREDIT_API_BASE:-}" ]; then
+            echo "$CREDIT_API_BASE" | npx wrangler secret put CREDIT_API_BASE --env dev
+          fi
+          if [ -n "${CREDIT_JCOURSE_SECRET:-}" ]; then
+            echo "$CREDIT_JCOURSE_SECRET" | npx wrangler secret put CREDIT_JCOURSE_SECRET --env dev
+          fi
 
       - name: Deploy Worker (env.dev)
         run: npm run deploy -- --env dev
