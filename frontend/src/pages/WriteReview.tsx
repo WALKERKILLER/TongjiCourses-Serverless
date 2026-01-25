@@ -242,7 +242,7 @@ export default function WriteReview() {
 
   if (!course) {
     return (
-      <div className="max-w-4xl mx-auto pb-24 md:pb-6 animate-pulse">
+      <div className="min-h-[100vh] max-w-4xl mx-auto pb-24 md:pb-6 animate-pulse">
         <GlassCard hover={false}>
           <div className="h-6 w-28 rounded-full bg-slate-200 mb-4" />
           <div className="h-8 w-3/4 rounded bg-slate-200 mb-6" />

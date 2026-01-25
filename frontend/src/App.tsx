@@ -4,14 +4,14 @@ import Navbar from './components/Navbar'
 import BottomNavigation from './components/BottomNavigation'
 import Footer from './components/Footer'
 import Courses from './pages/Courses'
+import Course from './pages/Course'
+import WriteReview from './pages/WriteReview'
+import About from './pages/About'
+import FAQ from './pages/FAQ'
+import Schedule from './pages/Schedule'
 
-const Course = lazy(() => import('./pages/Course'))
-const WriteReview = lazy(() => import('./pages/WriteReview'))
 const Admin = lazy(() => import('./pages/Admin'))
-const About = lazy(() => import('./pages/About'))
-const FAQ = lazy(() => import('./pages/FAQ'))
 const Feedback = lazy(() => import('./pages/Feedback'))
-const Schedule = lazy(() => import('./pages/Schedule'))
 const CreditWalletPanel = lazy(() => import('./components/CreditWalletPanel'))
 
 export default function App() {

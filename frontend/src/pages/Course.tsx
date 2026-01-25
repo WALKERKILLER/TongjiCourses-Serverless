@@ -127,7 +127,7 @@ export default function Course() {
 
   if (!course) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-pulse">
+      <div className="min-h-[100vh] grid grid-cols-1 lg:grid-cols-12 gap-6 animate-pulse">
         <div className="lg:col-span-4 space-y-4">
           <GlassCard hover={false}>
             <div className="h-6 w-28 rounded-full bg-slate-200 mb-4" />
