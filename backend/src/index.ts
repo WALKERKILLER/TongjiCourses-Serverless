@@ -101,6 +101,32 @@ async function ensurePkSearchIndexes(db: D1Database) {
   try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_teacher_teacherCode ON teacher(teacherCode)').run() } catch {}
 }
 
+async function ensureCourseSearchIndexes(db: D1Database) {
+  // Speed up cross-semester review matching queries: courses(name) + teachers(name) + courses(teacher_id).
+  // (All indexes are IF NOT EXISTS; safe to run on existing DB.)
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_courses_name ON courses(name)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_courses_teacher_id ON courses(teacher_id)').run() } catch {}
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name)').run() } catch {}
+
+  // Speed up course reviews query (ORDER BY created_at DESC under course_id filter).
+  try { await db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_course_created ON reviews(course_id, created_at DESC)').run() } catch {}
+}
+
+let dbInitPromise: Promise<void> | null = null
+async function ensureDbInitialized(db: D1Database) {
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      await ensureCourseAliasesTable(db)
+      await ensurePkSearchIndexes(db)
+      await ensureCourseSearchIndexes(db)
+      await ensureReviewLikesTable(db)
+      await ensureReviewsWalletColumn(db)
+      await ensureLegacyAutoDocsPurged(db)
+    })()
+  }
+  await dbInitPromise
+}
+
 async function ensureReviewLikesTable(db: D1Database) {
   await db
     .prepare(
@@ -149,6 +175,17 @@ async function ensureLegacyAutoDocsPurged(db: D1Database) {
     // best-effort; don't block API
     console.error('Failed to purge legacy AUTO docs:', e)
   }
+}
+
+let showIcuCache: { value: boolean; expiresAt: number } | null = null
+async function getShowIcuSetting(db: D1Database): Promise<boolean> {
+  const now = Date.now()
+  if (showIcuCache && showIcuCache.expiresAt > now) return showIcuCache.value
+
+  const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{ value: string }>()
+  const value = row?.value === 'true'
+  showIcuCache = { value, expiresAt: now + 30_000 }
+  return value
 }
 
 async function postCreditJcourseEvent(
@@ -205,18 +242,18 @@ async function postCreditJcourseEvent(
 
 // 公开 API - 获取设置
 app.get('/api/settings/show_icu', async (c) => {
-  const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
-  return c.json({ show_icu: setting?.value === 'true' })
+  await ensureDbInitialized(c.env.DB)
+  const showIcu = await getShowIcuSetting(c.env.DB)
+  return c.json({ show_icu: showIcu })
 })
 
 // 获取开课单位列表
 app.get('/api/departments', async (c) => {
   try {
-    await ensureLegacyAutoDocsPurged(c.env.DB)
+    await ensureDbInitialized(c.env.DB)
 
     // 检查是否显示 is_icu 数据
-    const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
-    const showIcu = setting?.value === 'true'
+    const showIcu = await getShowIcuSetting(c.env.DB)
 
     let whereClause = ' WHERE department IS NOT NULL AND department != ""'
 
@@ -240,9 +277,7 @@ app.get('/api/departments', async (c) => {
 
 app.get('/api/courses', async (c) => {
   try {
-    await ensureCourseAliasesTable(c.env.DB)
-    await ensurePkSearchIndexes(c.env.DB)
-    await ensureLegacyAutoDocsPurged(c.env.DB)
+    await ensureDbInitialized(c.env.DB)
     const keyword = c.req.query('q')
     const departments = c.req.query('departments') // 逗号分隔的开课单位列表
     const onlyWithReviews = c.req.query('onlyWithReviews') === 'true'
@@ -257,8 +292,7 @@ app.get('/api/courses', async (c) => {
     const offset = (page - 1) * limit
 
     // 检查是否显示 is_icu 数据
-    const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
-    const showIcu = setting?.value === 'true'
+    const showIcu = await getShowIcuSetting(c.env.DB)
 
     let withClause = ''
     let baseWhere = ' WHERE 1=1'
@@ -418,13 +452,11 @@ app.get('/api/courses', async (c) => {
 
 app.get('/api/course/:id', async (c) => {
   try {
-    await ensureCourseAliasesTable(c.env.DB)
-    await ensureLegacyAutoDocsPurged(c.env.DB)
+    await ensureDbInitialized(c.env.DB)
     const id = c.req.param('id')
 
     // 检查是否显示乌龙茶数据
-    const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('show_legacy_reviews').first<{value: string}>()
-    const showIcu = setting?.value === 'true'
+    const showIcu = await getShowIcuSetting(c.env.DB)
 
     const course = await c.env.DB.prepare(
       `SELECT c.*, t.name as teacher_name FROM courses c
@@ -446,22 +478,35 @@ app.get('/api/course/:id', async (c) => {
     // 评价匹配策略（跨学期）：
     // - 同课程名 + 同教师（教师名；可不同学期/课号）
     // - 若教师缺失：回退到同 code
-    const matchedIds = new Set<number>()
+    const matchedIds = new Set<number>([Number((course as any).id)])
     const teacherName = String((course as any).teacher_name || '').trim()
 
+    // Cross-semester review matching:
+    // - Prefer "same course name + same teacher name" (allow different semester/course code).
+    // - Fallback: when teacher missing, match by same canonical code.
     if (teacherName) {
-      const rows = await c.env.DB
-        .prepare(
-          `SELECT c.id as id
-           FROM courses c
-           LEFT JOIN teachers t ON c.teacher_id = t.id
-           WHERE c.name = ?
-             AND COALESCE(t.name, '') = ?
-             AND NOT (c.is_legacy = 1 AND c.code LIKE '%AUTO%')`
-        )
-        .bind((course as any).name, teacherName)
+      const teacherIdsRows = await c.env.DB
+        .prepare('SELECT id FROM teachers WHERE name = ?')
+        .bind(teacherName)
         .all<{ id: number }>()
-      for (const r of rows.results || []) matchedIds.add(Number((r as any).id))
+
+      const teacherIds = (teacherIdsRows.results || [])
+        .map((r: any) => Number(r.id))
+        .filter((n) => Number.isFinite(n))
+
+      if (teacherIds.length > 0) {
+        const placeholdersT = teacherIds.map(() => '?').join(',')
+        const rows = await c.env.DB
+          .prepare(
+            `SELECT id FROM courses
+             WHERE name = ?
+               AND teacher_id IN (${placeholdersT})
+               AND NOT (is_legacy = 1 AND code LIKE '%AUTO%')`
+          )
+          .bind((course as any).name, ...teacherIds)
+          .all<{ id: number }>()
+        for (const r of rows.results || []) matchedIds.add(Number((r as any).id))
+      }
     } else {
       const rows = await c.env.DB
         .prepare(`SELECT id FROM courses WHERE code = ? AND NOT (is_legacy = 1 AND code LIKE '%AUTO%')`)
@@ -490,7 +535,6 @@ app.get('/api/course/:id', async (c) => {
 
     let likedSet = new Set<number>()
     if (clientId && reviewIds.length > 0) {
-      await ensureReviewLikesTable(c.env.DB)
       const placeholders2 = reviewIds.map(() => '?').join(',')
       const likedRows = await c.env.DB
         .prepare(`SELECT review_id FROM review_likes WHERE client_id = ? AND review_id IN (${placeholders2})`)
@@ -515,32 +559,44 @@ app.get('/api/course/:id', async (c) => {
       .bind(...idList)
       .first<{ avg: number | null }>()
 
-    const semestersRow = await c.env.DB
-      .prepare(
-        `SELECT GROUP_CONCAT(x.calendarName, '||') as semester_names FROM (
-          SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
-          FROM coursedetail cd2
-          JOIN calendar ca ON ca.calendarId = cd2.calendarId
-          WHERE (
-            cd2.courseCode = ?
-            OR cd2.newCourseCode = ?
-            OR EXISTS (
-              SELECT 1 FROM course_aliases a
-              WHERE a.system = 'onesystem'
-                AND a.course_id = ?
-                AND (a.alias = cd2.courseCode OR a.alias = cd2.newCourseCode)
-            )
-          )
-          ORDER BY cd2.calendarId DESC
-        ) x`
-      )
-      .bind((course as any).code, (course as any).code, Number((course as any).id))
-      .first<{ semester_names: string | null }>()
+    let semesters: string[] = []
+    try {
+      const aliasRows = await c.env.DB
+        .prepare(`SELECT alias FROM course_aliases WHERE system = 'onesystem' AND course_id = ?`)
+        .bind(Number((course as any).id))
+        .all<{ alias: string }>()
 
-    const semesters = String(semestersRow?.semester_names || '')
-      .split('||')
-      .map((s) => s.trim())
-      .filter(Boolean)
+      const codeList = [
+        String((course as any).code || '').trim(),
+        ...(aliasRows.results || []).map((r: any) => String(r.alias || '').trim())
+      ]
+        .filter(Boolean)
+
+      const uniqueCodes = Array.from(new Set(codeList))
+      if (uniqueCodes.length > 0) {
+        const placeholdersC = uniqueCodes.map(() => '?').join(',')
+        const semestersRow = await c.env.DB
+          .prepare(
+            `SELECT GROUP_CONCAT(x.calendarName, '||') as semester_names FROM (
+              SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
+              FROM coursedetail cd2
+              JOIN calendar ca ON ca.calendarId = cd2.calendarId
+              WHERE cd2.courseCode IN (${placeholdersC})
+                 OR cd2.newCourseCode IN (${placeholdersC})
+              ORDER BY cd2.calendarId DESC
+            ) x`
+          )
+          .bind(...uniqueCodes, ...uniqueCodes)
+          .first<{ semester_names: string | null }>()
+
+        semesters = String(semestersRow?.semester_names || '')
+          .split('||')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+    } catch {
+      semesters = []
+    }
 
     return c.json({
       ...(course as any),
@@ -557,17 +613,14 @@ app.get('/api/course/:id', async (c) => {
 // 给排课模拟器侧边弹窗使用：按课号/新课号查找课程评价
 app.get('/api/course/by-code/:code', async (c) => {
   try {
-    await ensureCourseAliasesTable(c.env.DB)
+    await ensureDbInitialized(c.env.DB)
     const code = (c.req.param('code') || '').trim()
     if (!code) return c.json({ error: 'Missing code' }, 400)
     const teacherName = (c.req.query('teacherName') || '').trim()
     const clientId = (c.req.query('clientId') || '').trim()
 
     // ICU 显示开关
-    const setting = await c.env.DB.prepare('SELECT value FROM settings WHERE key = ?')
-      .bind('show_legacy_reviews')
-      .first<{ value: string }>()
-    const showIcu = setting?.value === 'true'
+    const showIcu = await getShowIcuSetting(c.env.DB)
 
     // 若带 teacherName：优先命中“课号/别名 + 教师”，避免同课号不同老师的评价混在一起
     const preferredRow = teacherName
