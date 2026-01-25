@@ -10,7 +10,7 @@
 
 @layer base {
   body {
-    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
     line-height: 1.6;
     color: #1e293b;
   }
