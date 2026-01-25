@@ -6,29 +6,29 @@
         <MyHeader />
         <MajorInfo @changeMajor="resetSelectedRows" />
         <a-layout class="m-2">
-          <!-- Mobile: tabbed layout for density -->
-          <div class="md:hidden">
-            <a-tabs v-model:activeKey="mobileTab" size="small" centered>
+          <!-- Mobile: tabbed layout for density (do NOT mount desktop panes on mobile) -->
+          <div v-if="isMobile">
+            <a-tabs v-model:activeKey="mobileTab" size="small" centered :destroyInactiveTabPane="true">
               <a-tab-pane key="timetable" tab="课表">
-                <TimeTable @cellClick="findCourseByTime" />
+                <TimeTable v-if="mobileTab === 'timetable'" @cellClick="findCourseByTime" />
               </a-tab-pane>
               <a-tab-pane key="list" tab="选课">
-                <CourseRoughList @openOverview="handleOpen"/>
+                <CourseRoughList v-if="mobileTab === 'list'" @openOverview="handleOpen"/>
               </a-tab-pane>
               <a-tab-pane key="detail" tab="详情">
-                <CourseDetailList />
+                <CourseDetailList v-if="mobileTab === 'detail'" />
               </a-tab-pane>
             </a-tabs>
           </div>
 
           <!-- Desktop: original two-pane layout -->
-          <div class="hidden md:flex flex-row gap-4 h-max">
+          <div v-else class="flex flex-row gap-4 h-max">
             <CourseRoughList @openOverview="handleOpen"/>
             <CourseDetailList />
           </div>
         </a-layout>
 
-        <div class="hidden md:block">
+        <div v-if="!isMobile">
           <TimeTable @cellClick="findCourseByTime" />
         </div>
         <MyFooter />
@@ -38,14 +38,14 @@
     title="选择课程"
     okText="提交"
     v-model:open="openOverview"
-    @ok="stageCourses"
-    @cancel="handleCancel"
-    :centered="true"
-    :maskClosable="true"
-    :bodyStyle="{ maxHeight: '70vh', overflow: 'auto' }"
-    style="width: 100%; max-width: 960px"
+      @ok="stageCourses"
+      @cancel="handleCancel"
+      :centered="true"
+      :maskClosable="true"
+      :bodyStyle="{ maxHeight: '70vh', overflow: 'auto' }"
+      style="width: 100%; max-width: 960px"
       >
-      <CourseOverview v-model:selectedRowKeys="selectedRowKeys" />
+      <CourseOverview v-if="openOverview" v-model:selectedRowKeys="selectedRowKeys" />
     </a-modal>
 
     <a-modal
@@ -59,7 +59,11 @@
       :bodyStyle="{ maxHeight: '70vh', overflow: 'auto' }"
       style="width: 100%; max-width: 960px"
     >
-      <OptionalCourseTimeOverview v-model:selectedRowKeys="selectedRowKeys" v-model:optionalCourseData="optionalCourseData" />
+      <OptionalCourseTimeOverview
+        v-if="openOptional"
+        v-model:selectedRowKeys="selectedRowKeys"
+        v-model:optionalCourseData="optionalCourseData"
+      />
     </a-modal>
   </a-config-provider>
 </template>
@@ -74,18 +78,21 @@ import { errorNotify } from './utils/notify';
 import { getRowSection } from './utils/timetable';
 import { defineAsyncComponent } from 'vue';
 import type { courseInfo } from './utils/myInterface';
+import MyHeader from './components/MyHeader.vue';
+import MajorInfo from './components/MajorInfo.vue';
+import TimeTable from './components/TimeTable.vue';
 
 dayjs.locale('zh-cn');
 
 export default {
   name: 'App',
   components: {
-    MyHeader: defineAsyncComponent(() => import('./components/MyHeader.vue')),
+    MyHeader,
+    MajorInfo,
+    TimeTable,
     MyFooter: defineAsyncComponent(() => import('./components/MyFooter.vue')),
     CourseRoughList: defineAsyncComponent(() => import('./components/CourseRoughList.vue')),
     CourseDetailList: defineAsyncComponent(() => import('./components/CourseDetailList.vue')),
-    TimeTable: defineAsyncComponent(() => import('./components/TimeTable.vue')),
-    MajorInfo: defineAsyncComponent(() => import('./components/MajorInfo.vue')),
     CourseOverview: defineAsyncComponent(() => import('./components/CourseOverview.vue')),
     OptionalCourseTimeOverview: defineAsyncComponent(() => import('./components/OptionalCourseTimeOverview.vue'))
   },
@@ -96,8 +103,21 @@ export default {
       openOverview: false,
       openOptional: false,
       optionalCourseData: [],
-      mobileTab: 'timetable'
+      mobileTab: 'timetable',
+      isMobile: (typeof window !== 'undefined' ? window.innerWidth < 768 : false) as boolean
     }
+  },
+  mounted() {
+    const update = () => {
+      this.isMobile = window.innerWidth < 768
+    }
+    ;(this as any).__onResize__ = update
+    update()
+    window.addEventListener('resize', update, { passive: true } as any)
+  },
+  beforeUnmount() {
+    const fn = (this as any).__onResize__
+    if (fn) window.removeEventListener('resize', fn as any)
   },
   computed: {
     myIndicator() {

@@ -37,6 +37,7 @@ interface Course {
 export default function Admin() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const hasAccess = searchParams.get('access') === ACCESS_KEY
   const [secret, setSecret] = useState(localStorage.getItem('admin_secret') || '')
   const [isAuth, setIsAuth] = useState(false)
   const [activeTab, setActiveTab] = useState<'reviews' | 'courses' | 'settings'>('reviews')
@@ -68,11 +69,25 @@ export default function Admin() {
 
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (searchParams.get('access') !== ACCESS_KEY) {
-      navigate('/')
-    }
-  }, [searchParams, navigate])
+  if (!hasAccess) {
+    return (
+      <div className="space-y-6">
+        <GlassCard hover={false}>
+          <div className="text-lg font-extrabold text-slate-800 mb-1">管理入口</div>
+          <div className="text-sm text-slate-600">
+            该页面仅供管理使用，缺少访问参数。
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="mt-4 px-4 py-2 rounded-lg font-semibold text-sm bg-cyan-500 text-white hover:bg-cyan-600 transition-colors"
+          >
+            返回首页
+          </button>
+        </GlassCard>
+      </div>
+    )
+  }
 
   const getHeaders = () => ({ 'x-admin-secret': secret, 'Content-Type': 'application/json' })
 

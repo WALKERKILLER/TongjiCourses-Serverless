@@ -6,7 +6,7 @@
             :pagination="false"
             :row-selection="{ 
                 selectedRowKeys: localSelectedRowKeys,
-                onChange: (keys: string[]) => onOptionalSelectChange(keys) 
+                onChange: (keys: any[]) => onOptionalSelectChange(keys) 
             }"
             :row-key="(record: any) => '选_' + record.courseNature + '_' + record.courseCode"
             :row-class-name="(_record: any, index: number) => index % 2 === 1 ? 'bg-gray-50' : ''"
@@ -16,11 +16,13 @@
 </template>
 
 <script lang="ts">
+    import { Table } from 'ant-design-vue';
     import type { stagedCourse, courseInfo } from '@/utils/myInterface';
 export default {
+    components: { ATable: Table },
     data() {
         return {
-            columns: [
+            columns: ([
                 {
                     title: '课程代码',
                     dataIndex: 'courseCode',
@@ -54,7 +56,7 @@ export default {
                     align: 'center',
                     customRender: ({ text }: { text: string[] }) => text ? text.join('、') : ''
                 }
-            ],
+            ] as any[]),
         }
     },
     methods: {
@@ -63,8 +65,8 @@ export default {
                 return !this.$store.state.commonLists.stagedCourses.some((stagedCourse: stagedCourse) => stagedCourse.courseCode === course.courseCode);
             });
         },
-        onOptionalSelectChange(keys: string[]) {
-            this.localSelectedRowKeys = keys;
+        onOptionalSelectChange(keys: any[]) {
+            this.localSelectedRowKeys = (keys || []).map((k: any) => String(k));
         }
     },
     computed: {

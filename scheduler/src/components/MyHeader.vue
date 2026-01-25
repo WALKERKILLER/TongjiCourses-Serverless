@@ -7,7 +7,9 @@
             <img
                 src="../assets/myLogo.png"
                 alt="排课模拟器"
-                class="h-10 w-auto max-w-[60vw] object-contain"
+                width="200"
+                height="40"
+                class="h-10 w-[200px] max-w-[60vw] object-contain"
             />
         </div>
 
@@ -280,14 +282,14 @@ export default {
                 });
             }
         },
-        wakeUpCSV() {
+        async wakeUpCSV() {
             const csv = codesToJsonForCSV(this.$store.state.commonLists.selectedCourses, this.$store.state.commonLists.stagedCourses);
-            const csvString = jsonToCSV(csv);
+            const csvString = await jsonToCSV(csv);
             downloadCSV(csvString);
         },
-        helpExcel() {
+        async helpExcel() {
             const xls = codesToJsonForXLS(this.$store.state.commonLists.selectedCourses, this.$store.state.commonLists.stagedCourses);
-            const xlsBlob = jsonToXLS(xls);
+            const xlsBlob = await jsonToXLS(xls);
             downloadXLS(xlsBlob);
         },
         readTheDocs() {

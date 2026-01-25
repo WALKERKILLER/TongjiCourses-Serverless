@@ -227,9 +227,11 @@ export default {
         }
     },
     async mounted() {
+        this.$store.commit("loadSolidify");
+
         await this.getAllCalendar()
         
-        if (this.rawList.calendars.length > 0) {
+        if (!this.$store.state.majorSelected.calendarId && this.rawList.calendars.length > 0) {
             this.$store.commit('setMajorInfo', {
                 calendarId: this.rawList.calendars[0].calendarId,
                 grade: undefined,
@@ -237,8 +239,6 @@ export default {
             });
             await this.findGradeByCalendarId(this.rawList.calendars[0].calendarId);
         }
-
-        this.$store.commit("loadSolidify");
 
         if (this.$store.state.majorSelected.calendarId) {
             this.$store.commit('setSpin', true);

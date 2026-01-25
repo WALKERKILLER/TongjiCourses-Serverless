@@ -1,5 +1,4 @@
 import type { csvCourse, stagedCourse } from "./myInterface";
-import Papa from 'papaparse';
 
 const csvHeader = {
     courseName: '课程名称',
@@ -53,7 +52,9 @@ export function downloadCSV(csvData: string) {
     window.URL.revokeObjectURL(url); // 释放内存
 }
 
-export function jsonToCSV(jsonData: csvCourse[]): string {
+export async function jsonToCSV(jsonData: csvCourse[]): Promise<string> {
+    const mod: any = await import('papaparse');
+    const Papa: any = mod?.default || mod;
     const csvData = Papa.unparse(jsonData, { header: false });
     return csvData;
 }

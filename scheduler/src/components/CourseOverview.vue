@@ -34,7 +34,7 @@
                 :title="() => courses.grade + '级'"
                 :row-selection="{ 
                     selectedRowKeys: localSelectedRowKeys.filter((key: string) => key.startsWith('必_' + courses.grade + '_')), 
-                    onChange: (keys: string[]) => onCompulsorySelectChange(keys)
+                    onChange: (keys: any[]) => onCompulsorySelectChange(keys)
                 }"
                 :row-key="(record: any) => '必_' + courses.grade + '_' + record.courseCode"
                 :row-class-name="(_record: any, index: number) => index % 2 === 1 ? 'bg-gray-50' : ''"
@@ -52,7 +52,7 @@
                         :pagination="false"
                         :row-selection="{ 
                             selectedRowKeys: localSelectedRowKeys.filter((key: string) => key.startsWith('选_' + type.courseLabelId + '_')), 
-                            onChange: (keys: string[]) => onOptionalSelectChange(keys) 
+                            onChange: (keys: any[]) => onOptionalSelectChange(keys) 
                         }"
                         :row-key="(record: any) => '选_' + type.courseLabelId + '_' + record.courseCode"
                         :row-class-name="(_record: any, index: number) => index % 2 === 1 ? 'bg-gray-50' : ''"
@@ -72,6 +72,7 @@
 
 <script lang="ts">
 import { SearchOutlined } from '@ant-design/icons-vue';
+import { Input, Radio, Table } from 'ant-design-vue';
 import type { stagedCourse, courseInfo } from '@/utils/myInterface';
 import { defineAsyncComponent } from 'vue';
 
@@ -84,7 +85,7 @@ export default {
             
             // 表格
             columns: {
-                compulsory: [
+                compulsory: ([
                     {
                         title: '课程代码',
                         dataIndex: 'courseCode',
@@ -113,8 +114,8 @@ export default {
                         customRender: ({ text }: { text: string[] }) => text ? text.join('、') : '',
                         responsive: ['md']
                     }
-                ],
-                optional: [
+                ] as any[]),
+                optional: ([
                     {
                         title: '课程代码',
                         dataIndex: 'courseCode',
@@ -143,7 +144,7 @@ export default {
                         customRender: ({ text }: { text: string[] }) => text ? text.join('、') : '',
                         responsive: ['md']
                     }
-                ]
+                ] as any[])
             },
 
             // 搜索
@@ -152,12 +153,12 @@ export default {
     },
     props: ['selectedRowKeys'],
     methods: {
-        onCompulsorySelectChange(localSelectedRowKeys: string[]) {
-            this.localSelectedRowKeys = localSelectedRowKeys;
+        onCompulsorySelectChange(localSelectedRowKeys: any[]) {
+            this.localSelectedRowKeys = (localSelectedRowKeys || []).map((k: any) => String(k));
             // console.log('localSelectedRowKeys changed: ', this.localSelectedRowKeys);
         },
-        onOptionalSelectChange(localSelectedRowKeys: string[]) {
-            this.localSelectedRowKeys = localSelectedRowKeys;
+        onOptionalSelectChange(localSelectedRowKeys: any[]) {
+            this.localSelectedRowKeys = (localSelectedRowKeys || []).map((k: any) => String(k));
             // console.log('localSelectedRowKeys changed: ', this.localSelectedRowKeys);
         },
         filteredCourses(courses: courseInfo[]) {
@@ -185,7 +186,11 @@ export default {
     },
     components: {
         SearchOutlined,
-        AdvancedSearch: defineAsyncComponent(() => import('@/components/AdvancedSearch.vue'))
+        AdvancedSearch: defineAsyncComponent(() => import('@/components/AdvancedSearch.vue')),
+        AInput: Input,
+        ATable: Table,
+        ARadioGroup: (Radio as any).Group,
+        ARadioButton: (Radio as any).Button
     },
     computed: {
         localSelectedRowKeys: {

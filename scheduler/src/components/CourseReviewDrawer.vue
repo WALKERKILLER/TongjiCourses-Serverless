@@ -155,6 +155,7 @@
 
 <script lang="ts">
 import axios from 'axios'
+import { Drawer } from 'ant-design-vue'
 import ReviewFanCard from './ReviewFanCard.vue'
 import { renderMarkdown } from '@/utils/markdown'
 import { getOrCreateClientId } from '@/utils/clientId'
@@ -333,7 +334,7 @@ export default {
       }
     }
   },
-  components: { ReviewFanCard }
+  components: { ReviewFanCard, ADrawer: Drawer }
 }
 </script>
 

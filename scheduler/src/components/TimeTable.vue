@@ -3,7 +3,10 @@
         <div v-if="isMobile" class="px-1 pb-2 text-[11px] text-slate-500">
             提示：长按课程块查看详细信息
         </div>
-        <div class="overflow-x-hidden max-w-full rounded-2xl border border-slate-200 bg-white/70 shadow-sm">
+        <div
+            class="overflow-x-hidden max-w-full rounded-2xl border border-slate-200 bg-white/70 shadow-sm"
+            :style="{ minHeight: tableMinHeight() + 'px' }"
+        >
         <div v-if="creditSummary.show" class="px-3 py-2 border-b border-slate-200 bg-white/70">
             <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] md:text-xs">
                 <div class="flex flex-wrap items-center gap-3">
@@ -135,6 +138,9 @@ export default {
         cellUnitHeight() {
             // 移动端更紧凑：保证竖屏一屏可看完整周课表（不横向滚动）
             return this.isMobile ? 44 : 54
+        },
+        tableMinHeight() {
+            return this.isMobile ? 620 : 820
         },
         hashColor(input: string) {
             let h = 0
@@ -326,6 +332,9 @@ export default {
             // 传入后，要 +1
             this.$emit('cellClick', { day: cell.dayIndex + 1, class: cell.rowIndex + 1 });
         }
+    },
+    created() {
+        this.updateTimeTable()
     },
     mounted() {
         const onResize = () => {

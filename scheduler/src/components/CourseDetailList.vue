@@ -84,18 +84,19 @@
 </template>
 
 <script lang="ts">
+import { Table, Tag } from 'ant-design-vue';
 import { mapStatusToChinese } from '@/utils/statusManipulate';
 import type { teacherlet, arrangementInfolet, courseDetaillet, stagedCourse } from '@/utils/myInterface';
 import CourseReviewDrawer from './CourseReviewDrawer.vue';
 
     export default {
-        components: { CourseReviewDrawer },
+        components: { CourseReviewDrawer, ATable: Table, ATag: Tag },
         data() {
             return {
                 reviewDrawerOpen: false,
                 reviewTeacherName: '',
                 isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
-                columns: [
+                columns: ([
                     {
                         title: '课程序号',
                         dataIndex: 'code',
@@ -141,7 +142,7 @@ import CourseReviewDrawer from './CourseReviewDrawer.vue';
                         key: 'language',
                         align: 'center'
                     }
-                ],
+                ] as any[]),
             }
         },
         computed: {

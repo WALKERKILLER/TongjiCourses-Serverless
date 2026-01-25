@@ -1,16 +1,13 @@
 import { defineConfig } from 'vitepress'
-import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default withMermaid(
-  defineConfig({
+export default defineConfig({
     title: "乌龙茶课程评价",
     description: "同济大学课程评价与选课指南文档",
     lang: 'zh-CN',
     base: '/wlc/',
     appearance: false,
-
-    mermaid: {
-      // Mermaid 配置选项
+    router: {
+      prefetchLinks: false,
     },
 
     head: [
@@ -100,4 +97,3 @@ export default withMermaid(
       }
     }
   })
-)

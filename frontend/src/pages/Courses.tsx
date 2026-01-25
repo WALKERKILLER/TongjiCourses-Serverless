@@ -337,6 +337,7 @@ export default function Courses() {
         </div>
       )}
 
+      <div className="min-h-[60vh]">
       {/* Loading State */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16">
@@ -494,6 +495,7 @@ export default function Courses() {
           )}
         </>
       )}
+      </div>
     </div>
   )
 }

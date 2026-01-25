@@ -4,14 +4,36 @@ import GlassCard from '../components/GlassCard'
 export default function Schedule() {
   const [loaded, setLoaded] = useState(false)
   const [simExists, setSimExists] = useState<boolean | null>(null)
+  const [mountIframe, setMountIframe] = useState(false)
   const simUrl = '/sim/index.html'
 
   useEffect(() => {
     setLoaded(false)
+    setMountIframe(false)
     fetch(simUrl, { method: 'HEAD' })
       .then((r) => setSimExists(r.ok))
       .catch(() => setSimExists(false))
   }, [simUrl])
+
+  useEffect(() => {
+    if (simExists !== true) return
+
+    let cancelled = false
+    const start = () => {
+      if (!cancelled) setMountIframe(true)
+    }
+
+    const w = window as any
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(start, { timeout: 1200 })
+    } else {
+      setTimeout(start, 400)
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [simExists])
 
   return (
     <div className="w-full">
@@ -39,17 +61,20 @@ export default function Schedule() {
       </div>
 
       <div className="relative w-full rounded-2xl overflow-hidden border border-white/50 bg-white/70 shadow-lg shadow-cyan-900/5">
-        {!loaded && (
+        {(!loaded || !mountIframe) && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
             正在加载排课模拟器...
           </div>
         )}
-        <iframe
-          title="Schedule Simulator"
-          src={simUrl}
-          className="w-full h-[calc(100vh-220px)] md:h-[calc(100vh-220px)] bg-white"
-          onLoad={() => setLoaded(true)}
-        />
+        {mountIframe && (
+          <iframe
+            title="Schedule Simulator"
+            src={simUrl}
+            loading="lazy"
+            className="w-full h-[calc(100vh-220px)] [height:calc(100svh-220px)] md:h-[calc(100vh-220px)] bg-white"
+            onLoad={() => setLoaded(true)}
+          />
+        )}
       </div>
     </div>
   )

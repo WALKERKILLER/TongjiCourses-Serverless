@@ -87,16 +87,17 @@
 
 <script lang="ts">
 import axios from 'axios';
-import { Modal } from 'ant-design-vue';
+import { Modal, Table } from 'ant-design-vue';
 import { mapStatusToChinese } from '@/utils/statusManipulate';
 import { errorNotify } from '@/utils/notify';
 import type { teacherlet, courseInfo } from '@/utils/myInterface';
 
 export default {
+    components: { ATable: Table },
     data() {
         return {
             isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
-            columns: [
+            columns: ([
             {
                 title: '课程名称',
                 dataIndex: 'courseName',
@@ -133,11 +134,11 @@ export default {
                 key: 'action',
                 align: 'center'
             }
-        ],
+        ] as any[]),
         }
     },
     methods: {
-        selectCourse(record: courseInfo) {
+        selectCourse(record: any) {
             this.$store.commit('setClickedCourseInfo', {
                 courseCode: record.courseCode,
                 courseName: (record as any).courseNameReserved || record.courseName
@@ -223,7 +224,7 @@ export default {
 
             return className;
         },
-        onRowEvent(record: courseInfo) {
+        onRowEvent(record: any) {
             return {
                 onClick: () => {
                     // console.log(record)
@@ -251,7 +252,7 @@ export default {
             this.$store.commit('saveSelectedCourses');
             this.$store.commit('solidify');
         },
-        handleRemoveCourse(record: courseInfo) {
+        handleRemoveCourse(record: any) {
             // 只有退课(status === 2)时才需要二次确认
             if (record.status === 2) {
                 Modal.confirm({

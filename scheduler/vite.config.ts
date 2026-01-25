@@ -6,14 +6,32 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
+function moveCssBeforeModuleScript() {
+  return {
+    name: 'yourtj-move-css-before-module-script',
+    enforce: 'post',
+    transformIndexHtml(html: string) {
+      // Avoid CLS caused by module script executing before the extracted CSS link is discovered.
+      const cssLinkRe = /(<link\s+rel=\"stylesheet\"[^>]*>)/
+      const scriptRe = /(<script\s+type=\"module\"[^>]*><\/script>)/
+      const css = html.match(cssLinkRe)?.[1]
+      const script = html.match(scriptRe)?.[1]
+      if (!css || !script) return html
+
+      return html.replace(cssLinkRe, '').replace(scriptRe, `${css}\n    ${script}`)
+    },
+  } as any
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: '/sim/',
   plugins: [
+    moveCssBeforeModuleScript(),
     vue(),
-    vueDevTools(),
+    command === 'serve' ? vueDevTools() : undefined,
     tailwindcss(),
-  ],
+  ].filter(Boolean) as any,
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -23,4 +41,4 @@ export default defineConfig({
     outDir: '../frontend/public/sim',
     emptyOutDir: true,
   }
-})
+}))

@@ -40,7 +40,7 @@
                         :pagination="false"
                         :row-selection="{ 
                             selectedRowKeys: localSelectedRowKeys.filter((key: string) => key.startsWith('查' + '_')), 
-                            onChange: (keys: string[]) => onSearchSelectChange(keys) 
+                            onChange: (keys: any[]) => onSearchSelectChange(keys) 
                         }"
                         :row-key="(record: any) => '查' + '_' + record.courseCode"
                         :row-class-name="(_record: string, index: number) => index % 2 === 1 ? 'bg-gray-50' : ''"
@@ -53,10 +53,12 @@
 
 <script lang="ts">
 import axios from 'axios';
+import { Input, Table } from 'ant-design-vue';
 import { errorNotify } from '@/utils/notify';
 import type { courseInfo, stagedCourse, rawCampus, rawFaculty } from '@/utils/myInterface';
 
 export default {
+    components: { AInput: Input, ATable: Table },
     data() {
         return {
             searchBody: {
@@ -72,7 +74,7 @@ export default {
                 campus: [] as rawCampus[],
                 faculty: [] as rawFaculty[]
             },
-            searchColumn: [
+            searchColumn: ([
                     {
                         title: '课程代码',
                         dataIndex: 'courseCode',
@@ -105,7 +107,7 @@ export default {
                         align: 'center',
                         customRender: ({ text }: { text: string[] }) => text ? text.join('、') : ''
                     }
-                ],
+                ] as any[]),
         }
     },
     methods: {
@@ -191,7 +193,7 @@ export default {
                 return courses.filter(course => course.courseCode.includes(this.searchValue) || course.courseName.includes(this.searchValue));
             }
         },
-        onSearchSelectChange(localSelectedRowKeys: string[]) {
+        onSearchSelectChange(localSelectedRowKeys: any[]) {
             this.localSelectedRowKeys = localSelectedRowKeys;
         },
     },

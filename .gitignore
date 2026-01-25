@@ -49,6 +49,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+.tmp-lh-*.json
+.tmp-run-lighthouse.ps1
 .cache/
 **/.vitepress/cache/
 

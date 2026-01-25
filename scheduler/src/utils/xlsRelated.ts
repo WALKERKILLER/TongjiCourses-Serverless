@@ -1,5 +1,4 @@
 import type { xlsCourse, stagedCourse } from "./myInterface";
-import * as XLSX from 'xlsx';
 
 const xlsHeader = ['课程代码', '课程名称', '教师姓名']
 
@@ -27,7 +26,8 @@ export function codesToJsonForXLS(codes: string[], rawList: stagedCourse[]): xls
 }
 
 // 将 json 数据转换为 xlsx 文件
-export function jsonToXLS(jsonData: xlsCourse[]): Blob {
+export async function jsonToXLS(jsonData: xlsCourse[]): Promise<Blob> {
+    const XLSX: any = await import('xlsx');
     const ws = XLSX.utils.aoa_to_sheet([xlsHeader]);
     XLSX.utils.sheet_add_json(ws, jsonData, { origin: 1, skipHeader: true });
     ws['!cols'] = [{ wch: 25 }, { wch: 50 }, { wch: 62.5 }];
