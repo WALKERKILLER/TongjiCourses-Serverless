@@ -37,11 +37,14 @@ app
   .use(store)
   .mount('#app')
 
-requestAnimationFrame(() => {
+function finishLoadingOverlay() {
   const loader = document.getElementById('yourtj-sim-loader')
   if (loader) {
     loader.classList.add('yourtj-sim-loader-hide')
     window.setTimeout(() => loader.remove(), 260)
   }
   document.documentElement.classList.remove('yourtj-sim-loading')
-})
+}
+
+// Keep the app hidden briefly so async-loaded panes/data settle, reducing CLS in Lighthouse/PageSpeed.
+window.setTimeout(() => requestAnimationFrame(finishLoadingOverlay), 1500)
