@@ -15,7 +15,6 @@
     "deploy": "wrangler pages deploy dist --project-name jcourse-web"
   },
   "dependencies": {
-    "framer-motion": "^12.25.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.21.0",

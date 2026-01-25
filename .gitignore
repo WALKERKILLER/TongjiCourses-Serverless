@@ -50,7 +50,7 @@ Thumbs.db
 *.tmp
 *.temp
 .tmp-lh-*.json
-.tmp-run-lighthouse.ps1
+.tmp-run-lighthouse*.ps1
 .cache/
 **/.vitepress/cache/
 

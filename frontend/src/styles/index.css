@@ -87,3 +87,13 @@ a:hover {
     padding: 1rem;
   }
 }
+
+@keyframes yourtjLogoSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.yourtj-logo-spin {
+  animation: yourtjLogoSpin 2s linear infinite;
+}

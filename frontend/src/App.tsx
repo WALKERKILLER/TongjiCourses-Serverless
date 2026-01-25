@@ -1,16 +1,18 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import BottomNavigation from './components/BottomNavigation'
 import Footer from './components/Footer'
 import Courses from './pages/Courses'
-import Course from './pages/Course'
-import WriteReview from './pages/WriteReview'
-import Admin from './pages/Admin'
-import About from './pages/About'
-import FAQ from './pages/FAQ'
-import Feedback from './pages/Feedback'
-import Schedule from './pages/Schedule'
-import CreditWalletPanel from './components/CreditWalletPanel'
+
+const Course = lazy(() => import('./pages/Course'))
+const WriteReview = lazy(() => import('./pages/WriteReview'))
+const Admin = lazy(() => import('./pages/Admin'))
+const About = lazy(() => import('./pages/About'))
+const FAQ = lazy(() => import('./pages/FAQ'))
+const Feedback = lazy(() => import('./pages/Feedback'))
+const Schedule = lazy(() => import('./pages/Schedule'))
+const CreditWalletPanel = lazy(() => import('./components/CreditWalletPanel'))
 
 export default function App() {
   const location = useLocation()
@@ -24,18 +26,30 @@ export default function App() {
       <main
         className={`${isSchedule ? 'max-w-none px-4 mt-4' : 'max-w-7xl px-4 mt-6 md:mt-8'} mx-auto flex-1 w-full ${isHome ? 'pb-12' : 'pb-20'} md:pb-0`}
       >
-        <Routes>
-          <Route path="/" element={<Courses />} />
-          <Route path="/course/:id" element={<Course />} />
-          <Route path="/write-review/:id" element={<WriteReview />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/feedback" element={<Feedback />} />
-        </Routes>
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+              姝ｅ湪鍔犺浇...
+            </div>
+          }
+        >
+          <Routes>
+            <Route path="/" element={<Courses />} />
+            <Route path="/course/:id" element={<Course />} />
+            <Route path="/write-review/:id" element={<WriteReview />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/schedule" element={<Schedule />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/feedback" element={<Feedback />} />
+          </Routes>
+        </Suspense>
       </main>
-      {!hideFloatingTools && <CreditWalletPanel />}
+      {!hideFloatingTools && (
+        <Suspense fallback={null}>
+          <CreditWalletPanel />
+        </Suspense>
+      )}
       <BottomNavigation />
       <Footer />
     </div>
