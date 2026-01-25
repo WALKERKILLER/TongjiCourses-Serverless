@@ -38,7 +38,10 @@ app
   .mount('#app')
 
 requestAnimationFrame(() => {
-  requestAnimationFrame(() => {
-    document.documentElement.classList.remove('yourtj-sim-cloak')
-  })
+  const loader = document.getElementById('yourtj-sim-loader')
+  if (loader) {
+    loader.classList.add('yourtj-sim-loader-hide')
+    window.setTimeout(() => loader.remove(), 260)
+  }
+  document.documentElement.classList.remove('yourtj-sim-loading')
 })

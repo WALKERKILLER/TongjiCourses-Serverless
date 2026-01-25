@@ -9,9 +9,9 @@ import WriteReview from './pages/WriteReview'
 import About from './pages/About'
 import FAQ from './pages/FAQ'
 import Schedule from './pages/Schedule'
+import Feedback from './pages/Feedback'
 
 const Admin = lazy(() => import('./pages/Admin'))
-const Feedback = lazy(() => import('./pages/Feedback'))
 const CreditWalletPanel = lazy(() => import('./components/CreditWalletPanel'))
 
 export default function App() {
