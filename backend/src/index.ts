@@ -549,15 +549,11 @@ app.get('/api/course/:id', async (c) => {
       liked: clientId ? likedSet.has(Number(r?.id)) : false
     }))
 
-    const countRow = await c.env.DB
-      .prepare(`SELECT COUNT(*) as cnt FROM reviews WHERE ${baseWhere}`)
-      .bind(...idList)
-      .first<{ cnt: number }>()
-
-    const avgRow = await c.env.DB
-      .prepare(`SELECT AVG(rating) as avg FROM reviews WHERE ${baseWhere} AND rating > 0`)
-      .bind(...idList)
-      .first<{ avg: number | null }>()
+    const reviewCount = rawReviews.length
+    const ratingNums = rawReviews
+      .map((r) => Number((r as any)?.rating ?? 0))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    const reviewAvg = ratingNums.length > 0 ? ratingNums.reduce((a, b) => a + b, 0) / ratingNums.length : 0
 
     let semesters: string[] = []
     try {
@@ -600,8 +596,8 @@ app.get('/api/course/:id', async (c) => {
 
     return c.json({
       ...(course as any),
-      review_count: Number(countRow?.cnt || 0),
-      review_avg: avgRow?.avg === null || avgRow?.avg === undefined ? 0 : Number(avgRow.avg),
+      review_count: reviewCount,
+      review_avg: reviewAvg,
       semesters,
       reviews: reviewsWithSqid
     })
@@ -730,7 +726,6 @@ app.get('/api/course/by-code/:code', async (c) => {
     // 是否点赞（可选）
     let likedSet = new Set<number>()
     if (clientId && (reviewsWithSqid || []).length > 0) {
-      await ensureReviewLikesTable(c.env.DB)
       const ids = (reviewsWithSqid || []).map((r: any) => Number(r?.id)).filter((n) => Number.isFinite(n))
       if (ids.length > 0) {
         const placeholders2 = ids.map(() => '?').join(',')
@@ -748,47 +743,54 @@ app.get('/api/course/by-code/:code', async (c) => {
       liked: clientId ? likedSet.has(Number(r?.id)) : false
     }))
 
-    const countRow = await c.env.DB
-      .prepare(`SELECT COUNT(*) as cnt FROM reviews WHERE ${baseWhere}`)
-      .bind(...idList)
-      .first<{ cnt: number }>()
+    const reviewCount = mappedReviews.length
+    const ratingNums = mappedReviews
+      .map((r: any) => Number(r?.rating ?? 0))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    const reviewAvg = ratingNums.length > 0 ? ratingNums.reduce((a, b) => a + b, 0) / ratingNums.length : 0
 
-    const avgRow = await c.env.DB
-      .prepare(`SELECT AVG(rating) as avg FROM reviews WHERE ${baseWhere} AND rating > 0`)
-      .bind(...idList)
-      .first<{ avg: number | null }>()
+    let semesters: string[] = []
+    try {
+      const aliasRows = await c.env.DB
+        .prepare(`SELECT alias FROM course_aliases WHERE system = 'onesystem' AND course_id = ?`)
+        .bind(Number(courseId))
+        .all<{ alias: string }>()
 
-    const semestersRow = await c.env.DB
-      .prepare(
-        `SELECT GROUP_CONCAT(x.calendarName, '||') as semester_names FROM (
-          SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
-          FROM coursedetail cd2
-          JOIN calendar ca ON ca.calendarId = cd2.calendarId
-          WHERE (
-            cd2.courseCode = ?
-            OR cd2.newCourseCode = ?
-            OR EXISTS (
-              SELECT 1 FROM course_aliases a
-              WHERE a.system = 'onesystem'
-                AND a.course_id = ?
-                AND (a.alias = cd2.courseCode OR a.alias = cd2.newCourseCode)
-            )
+      const codeList = [
+        String((course as any).code || '').trim(),
+        ...(aliasRows.results || []).map((r: any) => String(r.alias || '').trim())
+      ].filter(Boolean)
+      const uniqueCodes = Array.from(new Set(codeList))
+
+      if (uniqueCodes.length > 0) {
+        const placeholdersC = uniqueCodes.map(() => '?').join(',')
+        const semestersRow = await c.env.DB
+          .prepare(
+            `SELECT GROUP_CONCAT(x.calendarName, '||') as semester_names FROM (
+              SELECT DISTINCT ca.calendarIdI18n as calendarName, cd2.calendarId as calendarId
+              FROM coursedetail cd2
+              JOIN calendar ca ON ca.calendarId = cd2.calendarId
+              WHERE cd2.courseCode IN (${placeholdersC})
+                 OR cd2.newCourseCode IN (${placeholdersC})
+              ORDER BY cd2.calendarId DESC
+            ) x`
           )
-          ORDER BY cd2.calendarId DESC
-        ) x`
-      )
-      .bind((course as any).code, (course as any).code, Number(courseId))
-      .first<{ semester_names: string | null }>()
+          .bind(...uniqueCodes, ...uniqueCodes)
+          .first<{ semester_names: string | null }>()
 
-    const semesters = String(semestersRow?.semester_names || '')
-      .split('||')
-      .map((s) => s.trim())
-      .filter(Boolean)
+        semesters = String(semestersRow?.semester_names || '')
+          .split('||')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+    } catch {
+      semesters = []
+    }
 
     return c.json({
       ...(course as any),
-      review_count: Number(countRow?.cnt || 0),
-      review_avg: avgRow?.avg === null || avgRow?.avg === undefined ? 0 : Number(avgRow.avg),
+      review_count: reviewCount,
+      review_avg: reviewAvg,
       semesters,
       reviews: mappedReviews
     })
