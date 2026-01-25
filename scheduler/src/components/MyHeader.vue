@@ -9,6 +9,9 @@
                 alt="排课模拟器"
                 width="200"
                 height="40"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
                 class="h-10 w-[200px] max-w-[60vw] object-contain"
             />
         </div>
