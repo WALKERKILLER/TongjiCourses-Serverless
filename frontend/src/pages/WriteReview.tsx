@@ -27,6 +27,7 @@ export default function WriteReview() {
   const navigate = useNavigate()
   const location = useLocation()
   const [course, setCourse] = useState<{ name: string; code: string } | null>(null)
+  const [loadError, setLoadError] = useState('')
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState(REVIEW_TEMPLATE)
   const [currentHints, setCurrentHints] = useState<TemplateHints>(DEFAULT_HINTS)
@@ -53,7 +54,12 @@ export default function WriteReview() {
   }
 
   useEffect(() => {
-    if (id) fetchCourse(id).then(setCourse)
+    if (!id) return
+    setCourse(null)
+    setLoadError('')
+    fetchCourse(id)
+      .then(setCourse)
+      .catch(() => setLoadError('加载失败，请重试'))
   }, [id])
 
   useEffect(() => {
@@ -212,7 +218,43 @@ export default function WriteReview() {
     }
   }
 
-  if (!course) return <div className="text-center py-20 text-slate-500">加载中...</div>
+  if (loadError) {
+    return (
+      <GlassCard hover={false}>
+        <div className="text-slate-700 font-bold mb-3">{loadError}</div>
+        <button
+          type="button"
+          className="px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-bold hover:bg-slate-700"
+          onClick={() => {
+            if (!id) return
+            setCourse(null)
+            setLoadError('')
+            fetchCourse(id)
+              .then(setCourse)
+              .catch(() => setLoadError('加载失败，请重试'))
+          }}
+        >
+          重新加载
+        </button>
+      </GlassCard>
+    )
+  }
+
+  if (!course) {
+    return (
+      <div className="max-w-4xl mx-auto pb-24 md:pb-6 animate-pulse">
+        <GlassCard hover={false}>
+          <div className="h-6 w-28 rounded-full bg-slate-200 mb-4" />
+          <div className="h-8 w-3/4 rounded bg-slate-200 mb-6" />
+          <div className="space-y-3">
+            <div className="h-12 rounded-2xl bg-slate-200/80" />
+            <div className="h-12 rounded-2xl bg-slate-200/80" />
+            <div className="h-12 rounded-2xl bg-slate-200/80" />
+          </div>
+        </GlassCard>
+      </div>
+    )
+  }
 
   const walletBound = !!loadCreditWallet()?.userHash
   const reviewEligible = String(comment || '').trim().length >= 50

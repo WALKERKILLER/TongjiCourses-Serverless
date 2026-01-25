@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { fetchCourse, likeReview, unlikeReview } from '../services/api'
 import GlassCard from '../components/GlassCard'
 import CollapsibleMarkdown from '../components/CollapsibleMarkdown'
-import Logo from '../components/Logo'
 import { getOrCreateClientId } from '../utils/clientId'
 import { loadCreditWallet } from '../utils/creditWallet'
 
@@ -38,12 +37,18 @@ export default function Course() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [course, setCourse] = useState<CourseData | null>(null)
+  const [loadError, setLoadError] = useState('')
   const [displayCount, setDisplayCount] = useState(20) // 初始显示20条评论
   const clientId = useMemo(() => getOrCreateClientId(), [])
   const walletHash = loadCreditWallet()?.userHash || ''
 
   useEffect(() => {
-    if (id) fetchCourse(id, { clientId }).then(setCourse)
+    if (!id) return
+    setCourse(null)
+    setLoadError('')
+    fetchCourse(id, { clientId })
+      .then(setCourse)
+      .catch(() => setLoadError('加载失败，请重试'))
   }, [id, clientId])
 
   const handleLoadMore = () => {
@@ -98,12 +103,61 @@ export default function Course() {
     navigate(`/write-review/${id}?edit=1`, { state: { editReview: review } })
   }
 
-  if (!course) return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <Logo size={60} animate />
-      <p className="mt-4 text-slate-500">加载中...</p>
-    </div>
-  )
+  if (loadError) {
+    return (
+      <GlassCard hover={false}>
+        <div className="text-slate-700 font-bold mb-3">{loadError}</div>
+        <button
+          type="button"
+          className="px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-bold hover:bg-slate-700"
+          onClick={() => {
+            if (!id) return
+            setCourse(null)
+            setLoadError('')
+            fetchCourse(id, { clientId })
+              .then(setCourse)
+              .catch(() => setLoadError('加载失败，请重试'))
+          }}
+        >
+          重新加载
+        </button>
+      </GlassCard>
+    )
+  }
+
+  if (!course) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-pulse">
+        <div className="lg:col-span-4 space-y-4">
+          <GlassCard hover={false}>
+            <div className="h-6 w-28 rounded-full bg-slate-200 mb-4" />
+            <div className="h-8 w-3/4 rounded bg-slate-200 mb-3" />
+            <div className="h-4 w-1/2 rounded bg-slate-200 mb-6" />
+            <div className="space-y-3">
+              <div className="h-14 rounded-xl bg-slate-200/80" />
+              <div className="h-14 rounded-xl bg-slate-200/80" />
+              <div className="h-14 rounded-xl bg-slate-200/80" />
+            </div>
+          </GlassCard>
+        </div>
+        <div className="lg:col-span-8 space-y-4">
+          <div className="h-6 w-44 rounded bg-slate-200" />
+          <GlassCard hover={false} className="!p-5">
+            <div className="h-5 w-1/3 rounded bg-slate-200 mb-3" />
+            <div className="h-4 w-full rounded bg-slate-200 mb-2" />
+            <div className="h-4 w-11/12 rounded bg-slate-200 mb-2" />
+            <div className="h-4 w-10/12 rounded bg-slate-200" />
+          </GlassCard>
+          <GlassCard hover={false} className="!p-5">
+            <div className="h-5 w-1/3 rounded bg-slate-200 mb-3" />
+            <div className="h-4 w-full rounded bg-slate-200 mb-2" />
+            <div className="h-4 w-11/12 rounded bg-slate-200 mb-2" />
+            <div className="h-4 w-10/12 rounded bg-slate-200" />
+          </GlassCard>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
