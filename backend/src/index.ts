@@ -475,6 +475,60 @@ app.get('/api/course/:id', async (c) => {
       return c.json({ error: 'Course not found' }, 404)
     }
 
+    const clientId = (c.req.query('clientId') || '').trim()
+    const cacheKey = new Request(
+      `https://cache.yourtj.de/api/course-base/${encodeURIComponent(String(id))}?showIcu=${showIcu ? '1' : '0'}`,
+      { method: 'GET' }
+    )
+    const cache = caches.default
+
+    try {
+      const cached = await cache.match(cacheKey)
+      if (cached) {
+        const basePayload = await cached.json()
+
+        if (!clientId) {
+          return new Response(JSON.stringify(basePayload), {
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'public, max-age=60'
+            }
+          })
+        }
+
+        const reviewIds = (basePayload as any)?.reviews
+          ? (basePayload as any).reviews.map((r: any) => Number(r?.id)).filter((n: number) => Number.isFinite(n))
+          : []
+
+        let likedSet = new Set<number>()
+        if (reviewIds.length > 0) {
+          const placeholders2 = reviewIds.map(() => '?').join(',')
+          const likedRows = await c.env.DB
+            .prepare(`SELECT review_id FROM review_likes WHERE client_id = ? AND review_id IN (${placeholders2})`)
+            .bind(clientId, ...reviewIds)
+            .all<{ review_id: number }>()
+          likedSet = new Set<number>((likedRows.results || []).map((r: any) => Number(r.review_id)))
+        }
+
+        const personalized = {
+          ...(basePayload as any),
+          reviews: ((basePayload as any).reviews || []).map((r: any) => ({
+            ...r,
+            liked: likedSet.has(Number(r?.id))
+          }))
+        }
+
+        return new Response(JSON.stringify(personalized), {
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store'
+          }
+        })
+      }
+    } catch {
+      // ignore cache failures
+    }
+
     // 评价匹配策略（跨学期）：
     // - 同课程名 + 同教师（教师名；可不同学期/课号）
     // - 若教师缺失：回退到同 code
@@ -523,30 +577,16 @@ app.get('/api/course/:id', async (c) => {
     let baseWhere = `course_id IN (${placeholders}) AND is_hidden = 0`
     if (!showIcu) baseWhere += ` AND is_icu = 0`
 
-    const clientId = (c.req.query('clientId') || '').trim()
-
     const reviews = await c.env.DB
       .prepare(`SELECT * FROM reviews WHERE ${baseWhere} ORDER BY created_at DESC`)
       .bind(...idList)
       .all()
 
     const rawReviews = (reviews.results || []) as any[]
-    const reviewIds = rawReviews.map((r) => Number(r?.id)).filter((n) => Number.isFinite(n))
-
-    let likedSet = new Set<number>()
-    if (clientId && reviewIds.length > 0) {
-      const placeholders2 = reviewIds.map(() => '?').join(',')
-      const likedRows = await c.env.DB
-        .prepare(`SELECT review_id FROM review_likes WHERE client_id = ? AND review_id IN (${placeholders2})`)
-        .bind(clientId, ...reviewIds)
-        .all<{ review_id: number }>()
-      likedSet = new Set<number>((likedRows.results || []).map((r: any) => Number(r.review_id)))
-    }
-
     const reviewsWithSqid = addSqidToReviews(rawReviews).map((r: any) => ({
       ...r,
       like_count: Number(r?.approve_count || 0),
-      liked: clientId ? likedSet.has(Number(r?.id)) : false
+      liked: false
     }))
 
     const reviewCount = rawReviews.length
@@ -594,12 +634,48 @@ app.get('/api/course/:id', async (c) => {
       semesters = []
     }
 
-    return c.json({
+    const basePayload = {
       ...(course as any),
       review_count: reviewCount,
       review_avg: reviewAvg,
       semesters,
       reviews: reviewsWithSqid
+    }
+
+    const cacheRes = new Response(JSON.stringify(basePayload), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=60'
+      }
+    })
+    c.executionCtx.waitUntil(cache.put(cacheKey, cacheRes.clone()))
+
+    if (!clientId) return cacheRes
+
+    const reviewIds = rawReviews.map((r) => Number(r?.id)).filter((n) => Number.isFinite(n))
+    let likedSet = new Set<number>()
+    if (reviewIds.length > 0) {
+      const placeholders2 = reviewIds.map(() => '?').join(',')
+      const likedRows = await c.env.DB
+        .prepare(`SELECT review_id FROM review_likes WHERE client_id = ? AND review_id IN (${placeholders2})`)
+        .bind(clientId, ...reviewIds)
+        .all<{ review_id: number }>()
+      likedSet = new Set<number>((likedRows.results || []).map((r: any) => Number(r.review_id)))
+    }
+
+    const personalized = {
+      ...basePayload,
+      reviews: (basePayload.reviews || []).map((r: any) => ({
+        ...r,
+        liked: likedSet.has(Number(r?.id))
+      }))
+    }
+
+    return new Response(JSON.stringify(personalized), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store'
+      }
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
