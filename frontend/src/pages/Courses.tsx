@@ -20,9 +20,11 @@ interface CourseItem {
 
 export default function Courses() {
   const location = useLocation()
+  const prevPathRef = useRef(location.pathname)
   const [courses, setCourses] = useState<CourseItem[]>([])
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [isSearching, setIsSearching] = useState(false) // 用于区分用户主动搜索和自动加载
   const [error, setError] = useState('')
   const [showLegacyDocs, setShowLegacyDocs] = useState(() => {
@@ -89,6 +91,7 @@ export default function Courses() {
     } finally {
       setLoading(false)
       setIsSearching(false) // 重置搜索状态
+      setHasLoadedOnce(true)
     }
   }
 
@@ -182,13 +185,19 @@ export default function Courses() {
     return () => clearInterval(t)
   }, [showLegacyDocs, legacyLoaded, legacyIsFirstOpen])
 
-  // 每次返回首页时刷新数据和开课单位列表
   useEffect(() => {
-    if (location.pathname === '/') {
+    loadDepartments()
+  }, [])
+
+  // 每次从其它页面返回首页时刷新数据和开课单位列表（避免首屏重复请求导致 CLS）
+  useEffect(() => {
+    const prev = prevPathRef.current
+    prevPathRef.current = location.pathname
+    if (location.pathname === '/' && prev !== '/') {
       search()
       loadDepartments()
     }
-  }, [location.key])
+  }, [location.pathname])
 
   const toggleLegacyDocs = () => {
     setShowLegacyDocs((v) => {
@@ -433,7 +442,7 @@ export default function Courses() {
             ))}
           </div>
 
-          {courses.length === 0 && (
+          {hasLoadedOnce && courses.length === 0 && (
             <div className="text-center py-20 bg-white/50 rounded-3xl border border-dashed border-slate-300">
               <p className="text-slate-400">
                 没有找到相关课程，换个关键词试试？
