@@ -5,7 +5,6 @@
                 <p>基于 <a href="https://github.com/me-shaon/GLWTPL" target="_blank" >GLWTPL</a> 开源</p>
                 <p>数据来源：<a href="https://1.tongji.edu.cn" target="_blank">同济大学教学管理信息系统</a></p>
                 <p>当前学期数据的更新时间：{{ $store.state.updateTime }}</p>
-                <p>排课模拟器原作者：<a href="https://github.com/XiaLing233" target="_blank">夏凌</a></p>
             </div>
         </a-layout-footer>
     </a-layout>
